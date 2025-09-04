@@ -1,5 +1,18 @@
 # Status-Page Docker Setup
 
+This document outlines the setup and architecture for running the Status-Page application using Docker.
+
+## Architecture
+
+The application is composed of several services orchestrated by `docker-compose`:
+
+- **`nginx`**: Acts as a reverse proxy, directing traffic to the `web` service. It also serves static files directly for better performance.
+- **`web`**: The main Status-Page application, a Django project running with Gunicorn. It handles all the application logic and API requests.
+- **`postgres`**: A PostgreSQL database used as the primary data store for the application.
+- **`redis`**: An in-memory data store, used by the application for caching and as a message broker for background tasks.
+- **`scheduler`**: A service that schedules recurring tasks for the application.
+- **`worker`**: A service that processes background jobs from a queue (e.g., sending notifications).
+
 ## Environment Variables
 
 You can customize the superuser credentials using these environment variables in `docker-compose.yml`:
@@ -16,8 +29,8 @@ You can customize the superuser credentials using these environment variables in
 
 ## Accessing the Application
 
-1. The application runs on `http://localhost:8000`
-2. Go to `http://localhost:8000/dashboard/login/` to log in
+1. The application runs on `http://localhost`
+2. Go to `http://localhost/dashboard/login/` to log in
 3. Use the credentials above to access the admin panel
 
 ## Commands
