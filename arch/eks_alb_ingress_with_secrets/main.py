@@ -76,6 +76,9 @@ with Diagram(
             # HPA for web pods
             hpa_web = ApplicationAutoScaling("HPA\n(web pods)")
 
+            # HPA for RQ pods
+            hpa_rq = ApplicationAutoScaling("HPA\n(RQ pods)")
+
             # Pods
             web_pods = [Pod("web-pod-1"), Pod("web-pod-2")]
             rq_pods = [Pod("rq-pod-1"), Pod("rq-pod-2")]
@@ -107,6 +110,9 @@ with Diagram(
 
     # HPA monitoring web pods
     hpa_web >> deploy_web
+
+    # HPA monitoring RQ pods
+    hpa_rq >> deploy_rq
 
     # Cluster Autoscaler monitoring nodes
     cluster_autoscaler >> ng_a
