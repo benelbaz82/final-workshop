@@ -16,7 +16,7 @@ The architecture spans all layers of the system, from networking and compute to 
 * **Security:** Use of IAM Roles for Service Accounts (IRSA), AWS Secrets Manager, and TLS termination at CloudFront/ALB.
 * **Automation:** Full CI/CD pipeline with GitHub Actions and Infrastructure-as-Code.
 * **Observability:** Metrics, dashboards, and logs available in real-time for proactive monitoring.
-* 
+  
 #### **2.2. Guiding Principles**
 * **Infrastructure as Code (IaC):** All infrastructure components are defined and managed through code (YAML files) to maintain consistency and enable easy recovery.
 * **Immutable Infrastructure:** Independent deployments for Web, Worker, and Scheduler.
@@ -27,12 +27,12 @@ The architecture spans all layers of the system, from networking and compute to 
 
 
 #### **3.1. High-Level Diagram**
-1. Users connect via Route 53 → CloudFront → ALB.
-2. ALB forwards requests to the Ingress Controller inside the EKS cluster.
-3. Ingress routes traffic to the Web Deployment pods.
-4. Web, Worker, and Scheduler deployments interact with RDS (PostgreSQL), ElastiCache (Redis), and Amazon OpenSearch Service.
-5. Secrets (DB, Redis, Django secret key) are securely fetched from AWS Secrets Manager and mounted into pods via the Secrets Store CSI Driver with IRSA permissions.
-6. Application and cluster metrics are collected in Amazon Managed Prometheus and visualized in Amazon Managed Grafana.
+* Users connect via Route 53 → CloudFront → ALB.
+* ALB forwards requests to the Ingress Controller inside the EKS cluster.
+* Ingress routes traffic to the Web Deployment pods.
+* Web, Worker, and Scheduler deployments interact with RDS (PostgreSQL), ElastiCache (Redis), and Amazon OpenSearch Service.
+* Secrets (DB, Redis, Django secret key) are securely fetched from AWS Secrets Manager and mounted into pods via the Secrets Store CSI Driver with IRSA permissions.
+* Application and cluster metrics are collected in Amazon Managed Prometheus and visualized in Amazon Managed Grafana.
 
 #### **3.2. Component Breakdown**
 
