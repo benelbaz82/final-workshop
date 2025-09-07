@@ -8,12 +8,6 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from settings import node_attr
-import os
-# ---- Fix for Graphviz on Windows ----
-graphviz_bin = r"C:\Program Files\Graphviz\bin"
-if os.name == "nt" and os.path.isdir(graphviz_bin):
-    os.environ["PATH"] = graphviz_bin + os.pathsep + os.environ.get("PATH", "")
-    os.environ["GRAPHVIZ_DOT"] = os.path.join(graphviz_bin, "dot.exe")
 
 # On-prem / general
 from diagrams.onprem.client import User
