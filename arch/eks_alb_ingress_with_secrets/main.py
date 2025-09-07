@@ -16,6 +16,7 @@ from diagrams.aws.security import SecretsManager
 from diagrams.aws.compute import EKS, EC2, ApplicationAutoScaling
 from diagrams.aws.database import RDS, ElastiCache
 from diagrams.aws.analytics import AmazonOpensearchService
+from diagrams.aws.management import AmazonManagedGrafana, AmazonManagedPrometheus
 
 from diagrams.k8s.network import Ingress, Service
 from diagrams.k8s.compute import Deployment, Pod, DaemonSet
@@ -88,6 +89,11 @@ with Diagram(
     # AWS Secrets Manager
     sm = SecretsManager("AWS Secrets Manager")
 
+    # Monitoring & Observability
+    with Cluster("Monitoring & Observability"):
+        grafana = AmazonManagedGrafana("Amazon Managed Grafana")
+        prometheus = AmazonManagedPrometheus("Amazon Managed\nService for Prometheus")
+
     # --- Traffic Flow ---
     user >> r53 >> cf >> alb
 
@@ -130,3 +136,9 @@ with Diagram(
     deploy_sched >> rds
     deploy_sched >> redis
     deploy_sched >> opensearch
+
+    # Monitoring connections
+    deploy_web >> Edge(label="metrics") >> prometheus
+    deploy_rq >> Edge(label="metrics") >> prometheus
+    deploy_sched >> Edge(label="metrics") >> prometheus
+    prometheus >> Edge(label="data source") >> grafana
