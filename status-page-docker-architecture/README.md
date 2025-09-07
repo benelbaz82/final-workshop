@@ -24,7 +24,7 @@ You can customize the superuser credentials using these environment variables in
 ## Current Credentials
 
 **Username:** `admin`  
-**Password:** `admin123`  
+**Password:** `admin`  
 **Email:** `admin@example.com`
 
 ## Accessing the Application
