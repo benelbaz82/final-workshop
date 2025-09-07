@@ -12,13 +12,16 @@ from settings import node_attr
 from diagrams.onprem.client import User
 
 from diagrams.aws.network import Route53, CloudFront, ALB
-from diagrams.aws.security import WAF, Shield, ACM, SecretsManager, IAM
+from diagrams.aws.security import SecretsManager
 from diagrams.aws.compute import EKS, EC2, ApplicationAutoScaling
 from diagrams.aws.database import RDS, ElastiCache
+from diagrams.aws.analytics import AmazonOpensearchService
 
 from diagrams.k8s.network import Ingress, Service
-from diagrams.k8s.compute import Deployment, Pod
-from diagrams.k8s.podconfig import Secret
+from diagrams.k8s.compute import Deployment, Pod, DaemonSet
+from diagrams.k8s.rbac import ServiceAccount
+
+from diagrams.generic.blank import Blank
 
 # ---- A. Fix Graphviz PATH for Windows (harmless on Linux/Mac) ----
 graphviz_bin = r"C:\Program Files\Graphviz\bin"
@@ -28,7 +31,7 @@ if os.name == "nt" and os.path.isdir(graphviz_bin):
 
 # ---- B. Only existing icons (no non-existent imports) ----
 with Diagram(
-    "EKS Architecture (ALB Ingress Controller) + Pods + Secrets",
+    "EKS Architecture (ALB Ingress Controller) + AWS Secrets Manager Integration",
     filename="eks_alb_ingress_with_secrets",
     direction="TB",
     show=False,
@@ -41,16 +44,11 @@ with Diagram(
         cf = CloudFront("CloudFront")
         alb = ALB("ALB")
 
-        # Security components
-        waf_edge = WAF("WAF")
-        shield_edge = Shield("Shield")
-        acm_edge = ACM("ACM Edge")
-        acm_regional = ACM("ACM Regional")
-
     # Data Layer
     with Cluster("Data Layer (Multi-AZ)"):
         rds = RDS("RDS PostgreSQL\n(Multi-AZ)")
         redis = ElastiCache("ElastiCache Redis\n(Multi-AZ)")
+        opensearch = AmazonOpensearchService("OpenSearch Service\n(Multi-AZ)")
 
     # Kubernetes / EKS
     with Cluster("EKS Cluster"):
@@ -64,14 +62,9 @@ with Diagram(
             ng_b = EC2("Nodes AZ-b")
 
         with Cluster("status-page Namespace"):
-            # IRSA - IAM Roles for Service Accounts
-            irsa = IAM("IRSA\n(IAM Roles for Service Accounts)")
-
-            # Ingress + Services
+            # Ingress + Service
             ing = Ingress("Ingress")
             svc_web = Service("web-service")
-            svc_rq = Service("rq-service")
-            svc_sched = Service("scheduler-service")
 
             # Deployments
             deploy_web = Deployment("web-deployment")
@@ -87,29 +80,24 @@ with Diagram(
             rq_pods = [Pod("rq-pod-1"), Pod("rq-pod-2")]
             sched_pod = Pod("scheduler-pod")
 
-            # Secrets
-            with Cluster("Kubernetes Secrets"):
-                k8s_secret_db = Secret("db-secret")
-                k8s_secret_redis = Secret("redis-secret")
-                k8s_secret_django = Secret("django-secret")
+            # AWS Secrets Manager Integration
+            sa = ServiceAccount("Service Account (D)\n(IRSA)")
+            csi_driver = DaemonSet("Secrets Store CSI Driver (E)\n(AWS ASCP (F))")
+            spc = Blank("SecretProviderClass (G)")
 
     # AWS Secrets Manager
     sm = SecretsManager("AWS Secrets Manager")
 
     # --- Traffic Flow ---
     user >> r53 >> cf >> alb
-    cf >> waf_edge
-    cf >> shield_edge
-    cf >> acm_edge
-    alb >> acm_regional
 
     alb >> ing >> svc_web >> deploy_web
     deploy_web >> web_pods[0]
     deploy_web >> web_pods[1]
 
-    svc_rq >> deploy_rq >> rq_pods[0]
-    svc_rq >> deploy_rq >> rq_pods[1]
-    svc_sched >> deploy_sched >> sched_pod
+    deploy_rq >> rq_pods[0]
+    deploy_rq >> rq_pods[1]
+    deploy_sched >> sched_pod
 
     # HPA monitoring web pods
     hpa_web >> deploy_web
@@ -118,33 +106,27 @@ with Diagram(
     cluster_autoscaler >> ng_a
     cluster_autoscaler >> ng_b
 
-    # Secrets connections
-    k8s_secret_db >> Edge(label="env") >> deploy_web
-    k8s_secret_redis >> Edge(label="env") >> deploy_web
-    k8s_secret_django >> Edge(label="env") >> deploy_web
+    # AWS Secrets Manager Integration
+    sm >> Edge(label="fetch secrets") >> spc
+    spc >> Edge(label="defines") >> csi_driver
+    csi_driver >> Edge(label="uses") >> sa
+    sa >> Edge(label="permissions") >> deploy_web
+    sa >> Edge(label="permissions") >> deploy_rq
+    sa >> Edge(label="permissions") >> deploy_sched
+    # Secrets mounted to pods
+    csi_driver >> Edge(label="mounts secrets") >> web_pods[0]
+    csi_driver >> Edge(label="mounts secrets") >> web_pods[1]
+    csi_driver >> Edge(label="mounts secrets") >> rq_pods[0]
+    csi_driver >> Edge(label="mounts secrets") >> rq_pods[1]
+    csi_driver >> Edge(label="mounts secrets") >> sched_pod
 
-    k8s_secret_db >> Edge(label="env") >> deploy_rq
-    k8s_secret_redis >> Edge(label="env") >> deploy_rq
-    k8s_secret_django >> Edge(label="env") >> deploy_rq
-
-    k8s_secret_db >> Edge(label="env") >> deploy_sched
-    k8s_secret_redis >> Edge(label="env") >> deploy_sched
-    k8s_secret_django >> Edge(label="env") >> deploy_sched
-
-    # Sync from AWS Secrets Manager
-    sm >> Edge(label="sync") >> k8s_secret_db
-    sm >> Edge(label="sync") >> k8s_secret_redis
-    sm >> Edge(label="sync") >> k8s_secret_django
-
-    # Application access to DB/Redis
+    # Application access to DB/Redis/OpenSearch
     deploy_web >> rds
     deploy_web >> redis
+    deploy_web >> opensearch
     deploy_rq >> rds
     deploy_rq >> redis
+    deploy_rq >> opensearch
     deploy_sched >> rds
     deploy_sched >> redis
-
-    # IRSA connections
-    irsa >> Edge(label="IAM role") >> deploy_web
-    irsa >> Edge(label="IAM role") >> deploy_rq
-    irsa >> Edge(label="IAM role") >> deploy_sched
+    deploy_sched >> opensearch
