@@ -1,12 +1,4 @@
-Of course, here is the Architectural Design Document in English.
-
----
-
 ## **Architectural Design Document: "Status-Page" Application on AWS EKS**
-
-**Version:** 1.0
-**Date:** 07.09.2025
-**Author:** [Author/Team Name]
 
 ### **1. Introduction**
 
