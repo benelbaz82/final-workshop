@@ -7,7 +7,7 @@ from diagrams import Diagram, Cluster, Edge
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from settings import node_attr
+from settings import node_attr, cluster_attr
 
 # On-prem / general
 from diagrams.onprem.client import User
@@ -32,6 +32,9 @@ graphviz_bin = r"C:\Program Files\Graphviz\bin"
 if os.name == "nt" and os.path.isdir(graphviz_bin):
     os.environ["PATH"] = graphviz_bin + os.pathsep + os.environ.get("PATH", "")
     os.environ["GRAPHVIZ_DOT"] = os.path.join(graphviz_bin, "dot.exe")
+    print(f"Graphviz PATH configured: {graphviz_bin}")
+else:
+    print("Graphviz PATH not configured (Linux/Mac or not found)")
 
 
 # -----------------
@@ -42,15 +45,15 @@ with Diagram("CI/CD Pipeline", filename="cicd_pipeline", direction="LR", show=Fa
     repo = Github("GitHub Repo\n(main + Helm charts)")
     ci = GithubActions("GitHub Actions\nWorkflow")
 
-    with Cluster("CI"):
+    with Cluster("CI", graph_attr=cluster_attr):
         tests = GithubActions("Run Tests")
         build = GithubActions("Build Docker Image")
         push = GithubActions("Push to ECR")
 
-    with Cluster("CD"):
+    with Cluster("CD", graph_attr=cluster_attr):
         deploy = ArgoCD("ArgoCD\nDeploy to Kubernetes")
 
-    with Cluster("Infrastructure"):
+    with Cluster("Infrastructure", graph_attr=cluster_attr):
         terraform = Terraform("Terraform\nProvision EKS & Infra")
         eks = EKS("EKS Cluster")
         registry = ECR("AWS ECR")
@@ -62,3 +65,6 @@ with Diagram("CI/CD Pipeline", filename="cicd_pipeline", direction="LR", show=Fa
     push >> registry
     terraform >> eks
     deploy >> eks >> grafana
+
+print("CI/CD Pipeline diagram generated successfully!")
+print(f"File saved as: cicd_pipeline.png")

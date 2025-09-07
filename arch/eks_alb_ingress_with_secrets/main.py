@@ -7,7 +7,7 @@ from diagrams import Diagram, Cluster, Edge
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from settings import node_attr
+from settings import node_attr, cluster_attr
 
 from diagrams.onprem.client import User
 
@@ -38,24 +38,24 @@ with Diagram(
     node_attr=node_attr
 ):
     # Edge Layer - User facing components
-    with Cluster("Edge Layer"):
+    with Cluster("Edge Layer", graph_attr=cluster_attr):
         user = User("End User")
         r53 = Route53("Route 53")
         cf = CloudFront("CloudFront")
         alb = ALB("ALB")
 
     # Kubernetes / EKS - Main application cluster
-    with Cluster("EKS Cluster"):
+    with Cluster("EKS Cluster", graph_attr=cluster_attr):
         eks = EKS("Control Plane")
 
         # Cluster Autoscaler
         cluster_autoscaler = ApplicationAutoScaling("Cluster Autoscaler")
 
-        with Cluster("Node Groups (Auto-Scaling)"):
+        with Cluster("Node Groups (Auto-Scaling)", graph_attr=cluster_attr):
             ng_a = EC2("Nodes AZ-a")
             ng_b = EC2("Nodes AZ-b")
 
-        with Cluster("status-page Namespace"):
+        with Cluster("status-page Namespace", graph_attr=cluster_attr):
             # Ingress + Service
             ing = Ingress("Ingress")
             svc_web = Service("web-service")
@@ -75,13 +75,13 @@ with Diagram(
             sched_pod = Pod("Scheduler Pod\n(replicas: 1)")
 
             # AWS Secrets Manager Integration
-            with Cluster("Secrets Integration"):
+            with Cluster("Secrets Integration", graph_attr=cluster_attr):
                 sa = ServiceAccount("Service Account\n(IRSA)")
                 csi_driver = DaemonSet("Secrets Store CSI Driver\n(AWS ASCP)")
                 spc = Role("SecretProviderClass")
 
     # Data Layer - Databases and storage
-    with Cluster("Data Layer (Multi-AZ)"):
+    with Cluster("Data Layer (Multi-AZ)", graph_attr=cluster_attr):
         rds = RDS("RDS PostgreSQL\n(Multi-AZ)")
         redis = ElastiCache("ElastiCache Redis\n(Multi-AZ)")
         opensearch = AmazonOpensearchService("OpenSearch Service\n(Multi-AZ)")
@@ -91,7 +91,7 @@ with Diagram(
     sm = SecretsManager("AWS Secrets Manager")
 
     # Monitoring & Observability - Observability stack
-    with Cluster("Monitoring & Observability"):
+    with Cluster("Monitoring & Observability", graph_attr=cluster_attr):
         grafana = AmazonManagedGrafana("Amazon Managed Grafana")
         prometheus = AmazonManagedPrometheus("Amazon Managed\nService for Prometheus")
 

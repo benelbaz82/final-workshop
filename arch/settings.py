@@ -2,11 +2,21 @@
 
 # General settings for all diagrams
 node_attr = {
-    "fontsize": "12",
+    "fontsize": "14",
     "fontname": "Arial Bold",
+    "fontweight": "bold",
     "labelloc": "b",
     "fixedsize": "true",
     "height": "2"
+}
+
+# Cluster settings for better visibility of cluster titles
+cluster_attr = {
+    "fontsize": "16",
+    "fontname": "Arial Black",
+    "fontweight": "bold",
+    "labelloc": "t",
+    "style": "filled"
 }
 
 # You can add other general settings here in the future
@@ -30,12 +40,12 @@ def run_all_diagrams():
         "eks_alb_ingress_with_secrets"
     ]
     
-    print("🚀 Starting to generate all architecture diagrams...")
+    print("Starting to generate all architecture diagrams...")
     print("=" * 50)
     
     for diagram in diagrams:
         diagram_path = os.path.join(base_dir, diagram, "main.py")
-        print(f"📊 Generating {diagram} diagram...")
+        print(f"Generating {diagram} diagram...")
         
         try:
             # Run the Python script
@@ -44,17 +54,20 @@ def run_all_diagrams():
             ], capture_output=True, text=True, cwd=os.path.join(base_dir, diagram))
             
             if result.returncode == 0:
-                print(f"✅ {diagram} diagram generated successfully!")
+                print(f"{diagram} diagram generated successfully!")
+                if result.stdout.strip():
+                    print(f"   Output: {result.stdout.strip()}")
             else:
-                print(f"❌ Error generating {diagram} diagram:")
+                print(f"Error generating {diagram} diagram:")
                 print(f"   Error: {result.stderr}")
                 
         except Exception as e:
-            print(f"❌ Failed to run {diagram}: {str(e)}")
+            print(f"Failed to run {diagram}: {str(e)}")
     
     print("=" * 50)
-    print("🎉 All diagrams generation completed!")
-    print(f"📁 Check the PNG files in each diagram directory in: {base_dir}")
+    print("All diagrams generation completed!")
+    print(f"Check the PNG files in each diagram directory in: {base_dir}")
+    print("All cluster titles are now styled with bold, larger fonts for better readability!")
 
 if __name__ == "__main__":
     # Allow running this script directly to generate all diagrams
