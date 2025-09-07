@@ -3,7 +3,10 @@
 # General settings for all diagrams
 node_attr = {
     "fontsize": "12",
-    "fontname": "Arial Bold"
+    "fontname": "Arial Bold",
+    "labelloc": "b",
+    "fixedsize": "true",
+    "height": "2"
 }
 
 # You can add other general settings here in the future
@@ -22,11 +25,8 @@ def run_all_diagrams():
     
     # List of diagram directories and their main.py files
     diagrams = [
-        "aws_overall_architecture",
-        "aws_network_and_data", 
+        "aws_network", 
         "cicd_pipeline",
-        "single_vm_alternative",
-        "cloudfront_fronting_alb",
         "eks_alb_ingress_with_secrets"
     ]
     

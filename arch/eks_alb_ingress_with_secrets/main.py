@@ -20,9 +20,8 @@ from diagrams.aws.management import AmazonManagedGrafana, AmazonManagedPrometheu
 
 from diagrams.k8s.network import Ingress, Service
 from diagrams.k8s.compute import Deployment, Pod, DaemonSet
-from diagrams.k8s.rbac import ServiceAccount
-
-from diagrams.generic.blank import Blank
+from diagrams.k8s.rbac import ServiceAccount, Role
+from diagrams.generic.storage import Storage
 
 # ---- A. Fix Graphviz PATH for Windows (harmless on Linux/Mac) ----
 graphviz_bin = r"C:\Program Files\Graphviz\bin"
@@ -32,26 +31,20 @@ if os.name == "nt" and os.path.isdir(graphviz_bin):
 
 # ---- B. Only existing icons (no non-existent imports) ----
 with Diagram(
-    "EKS Architecture (ALB Ingress Controller) + AWS Secrets Manager Integration",
+    "EKS Architecture with ALB Ingress and Secrets Manager",
     filename="eks_alb_ingress_with_secrets",
     direction="TB",
     show=False,
     node_attr=node_attr
 ):
-    # Edge Layer - grouped into cluster
+    # Edge Layer - User facing components
     with Cluster("Edge Layer"):
         user = User("End User")
         r53 = Route53("Route 53")
         cf = CloudFront("CloudFront")
         alb = ALB("ALB")
 
-    # Data Layer
-    with Cluster("Data Layer (Multi-AZ)"):
-        rds = RDS("RDS PostgreSQL\n(Multi-AZ)")
-        redis = ElastiCache("ElastiCache Redis\n(Multi-AZ)")
-        opensearch = AmazonOpensearchService("OpenSearch Service\n(Multi-AZ)")
-
-    # Kubernetes / EKS
+    # Kubernetes / EKS - Main application cluster
     with Cluster("EKS Cluster"):
         eks = EKS("Control Plane")
 
@@ -70,81 +63,61 @@ with Diagram(
             # Deployments
             deploy_web = Deployment("web-deployment")
             deploy_rq = Deployment("rq-deployment\n(replicas: 2)")
-            # Deployment for scheduler (replicas: 1 for consistent operations)
             deploy_sched = Deployment("scheduler-deployment\n(replicas: 1)")
 
-            # HPA for web pods
+            # HPA for web and RQ pods
             hpa_web = ApplicationAutoScaling("HPA\n(web pods)")
-
-            # HPA for RQ pods
             hpa_rq = ApplicationAutoScaling("HPA\n(RQ pods)")
 
             # Pods
-            web_pods = [Pod("web-pod-1"), Pod("web-pod-2")]
-            rq_pods = [Pod("rq-pod-1"), Pod("rq-pod-2")]
-            sched_pod = Pod("scheduler-pod")
+            web_pods = Pod("Web Pods\n(replicas: 2)")
+            rq_pods = Pod("RQ Pods\n(replicas: 2)")
+            sched_pod = Pod("Scheduler Pod\n(replicas: 1)")
 
             # AWS Secrets Manager Integration
-            sa = ServiceAccount("Service Account (D)\n(IRSA)")
-            csi_driver = DaemonSet("Secrets Store CSI Driver (E)\n(AWS ASCP (F))")
-            spc = Blank("SecretProviderClass (G)")
+            with Cluster("Secrets Integration"):
+                sa = ServiceAccount("Service Account\n(IRSA)")
+                csi_driver = DaemonSet("Secrets Store CSI Driver\n(AWS ASCP)")
+                spc = Role("SecretProviderClass")
 
-    # AWS Secrets Manager
+    # Data Layer - Databases and storage
+    with Cluster("Data Layer (Multi-AZ)"):
+        rds = RDS("RDS PostgreSQL\n(Multi-AZ)")
+        redis = ElastiCache("ElastiCache Redis\n(Multi-AZ)")
+        opensearch = AmazonOpensearchService("OpenSearch Service\n(Multi-AZ)")
+        data_access = Storage("Data Access")
+
+    # AWS Secrets Manager - External secrets
     sm = SecretsManager("AWS Secrets Manager")
 
-    # Monitoring & Observability
+    # Monitoring & Observability - Observability stack
     with Cluster("Monitoring & Observability"):
         grafana = AmazonManagedGrafana("Amazon Managed Grafana")
         prometheus = AmazonManagedPrometheus("Amazon Managed\nService for Prometheus")
 
     # --- Traffic Flow ---
-    user >> r53 >> cf >> alb
+    user >> r53 >> cf >> alb >> ing >> svc_web >> deploy_web >> web_pods
 
-    alb >> ing >> svc_web >> deploy_web
-    deploy_web >> web_pods[0]
-    deploy_web >> web_pods[1]
-
-    deploy_rq >> rq_pods[0]
-    deploy_rq >> rq_pods[1]
+    # Application deployments to pods
+    deploy_rq >> rq_pods
     deploy_sched >> sched_pod
 
-    # HPA monitoring web pods
+    # HPA monitoring
     hpa_web >> deploy_web
-
-    # HPA monitoring RQ pods
     hpa_rq >> deploy_rq
 
-    # Cluster Autoscaler monitoring nodes
+    # Cluster Autoscaler
     cluster_autoscaler >> ng_a
     cluster_autoscaler >> ng_b
 
     # AWS Secrets Manager Integration
     sm >> Edge(label="fetch secrets") >> spc
-    spc >> Edge(label="defines") >> csi_driver
-    csi_driver >> Edge(label="uses") >> sa
-    sa >> Edge(label="permissions") >> deploy_web
-    sa >> Edge(label="permissions") >> deploy_rq
-    sa >> Edge(label="permissions") >> deploy_sched
-    # Secrets mounted to pods
-    csi_driver >> Edge(label="mounts secrets") >> web_pods[0]
-    csi_driver >> Edge(label="mounts secrets") >> web_pods[1]
-    csi_driver >> Edge(label="mounts secrets") >> rq_pods[0]
-    csi_driver >> Edge(label="mounts secrets") >> rq_pods[1]
-    csi_driver >> Edge(label="mounts secrets") >> sched_pod
+    spc >> csi_driver >> sa
+    sa >> Edge(label="IRSA permissions") >> [deploy_web, deploy_rq, deploy_sched]
+    csi_driver >> Edge(label="mount secrets") >> [web_pods, rq_pods, sched_pod]
 
-    # Application access to DB/Redis/OpenSearch
-    deploy_web >> rds
-    deploy_web >> redis
-    deploy_web >> opensearch
-    deploy_rq >> rds
-    deploy_rq >> redis
-    deploy_rq >> opensearch
-    deploy_sched >> rds
-    deploy_sched >> redis
-    deploy_sched >> opensearch
+    # Data access
+    [deploy_web, deploy_rq, deploy_sched] >> Edge(label="access data") >> data_access
 
-    # Monitoring connections
-    deploy_web >> Edge(label="metrics") >> prometheus
-    deploy_rq >> Edge(label="metrics") >> prometheus
-    deploy_sched >> Edge(label="metrics") >> prometheus
-    prometheus >> Edge(label="data source") >> grafana
+    # Monitoring
+    [deploy_web, deploy_rq, deploy_sched] >> Edge(label="metrics") >> prometheus >> grafana
