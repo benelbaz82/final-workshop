@@ -3,48 +3,63 @@
 ### **1. Introduction**
 
 #### **1.1. Purpose**
-This document describes the comprehensive architecture for running, managing, and maintaining the "Status-Page" Django-based application in a production environment on Amazon Web Services (AWS). The objective is to establish a modern, secure, scalable, and highly available infrastructure using Amazon Elastic Kubernetes Service (EKS).
+This document describes the architecture for deploying and operating the Status-Page Django-based application on Amazon Web Services (AWS) using Elastic Kubernetes Service (EKS). The objective is to deliver a modern, secure, scalable, and highly available infrastructure.
 
 #### **1.2. Scope**
-The architecture encompasses all required components, from the network infrastructure (VPC), through the compute layer (EKS), data layer (RDS, ElastiCache), security, CI/CD processes, and a complete monitoring and logging system.
+The architecture spans all layers of the system, from networking and compute to data storage, security, CI/CD automation, and observability.
 
 ### **2. Architectural Goals and Principles**
 
 #### **2.1. Goals**
-* **High Availability:** Ensure continuous application uptime by preventing single points of failure (SPOF) and distributing components across multiple Availability Zones (AZs).
-* **Scalability:** The ability to automatically scale resources up and down based on user load.
-* **Security:** Implement security at every layer of the system, from the network to the application level, adhering to the principle of least privilege.
-* **Automation:** Full automation of the build, test, and deployment processes (CI/CD) to enable rapid and reliable development.
-* **Observability:** The ability to monitor, collect logs, and receive real-time alerts to quickly identify and resolve issues.
-
+* **High Availability:** Multi-AZ deployment of all core services, eliminating single points of failure.
+* **Scalability:** Horizontal Pod Autoscaler (HPA) for workloads and Cluster Autoscaler for nodes.
+* **Security:** Use of IAM Roles for Service Accounts (IRSA), AWS Secrets Manager, and TLS termination at CloudFront/ALB.
+* **Automation:** Full CI/CD pipeline with GitHub Actions and Infrastructure-as-Code.
+* **Observability:** Metrics, dashboards, and logs available in real-time for proactive monitoring.
+* 
 #### **2.2. Guiding Principles**
 * **Infrastructure as Code (IaC):** All infrastructure components are defined and managed through code (YAML files) to maintain consistency and enable easy recovery.
-* **Immutable Infrastructure:** Containers are immutable units. Any change requires building and deploying a new version.
-* **Decoupling:** Separating the application's different components (Web, Worker, Scheduler) into distinct containers to improve flexibility and scalability.
-* **Managed Services:** Preferring the use of AWS managed services (such as RDS, ElastiCache, EKS Control Plane) to reduce the operational maintenance burden.
+* **Immutable Infrastructure:** Independent deployments for Web, Worker, and Scheduler.
+* **Microservice Separation:** Separating the application's different components (Web, Worker, Scheduler) into distinct containers to improve flexibility and scalability.
+* **Managed Services:** Minimize operational overhead by leveraging AWS-managed services (RDS, ElastiCache, OpenSearch, Prometheus, Grafana).
 
 ### **3. System Architecture**
 
+
 #### **3.1. High-Level Diagram**
-The application is deployed on an EKS cluster spanning three Availability Zones. User traffic enters through an Application Load Balancer (ALB), which routes requests to the application's web components. The web components communicate with a PostgreSQL database (RDS) and a Redis task queue (ElastiCache). The Worker and Scheduler components consume tasks from the Redis queue. All internal and external communication is secured and restricted.
+1. Users connect via Route 53 → CloudFront → ALB.
+2. ALB forwards requests to the Ingress Controller inside the EKS cluster.
+3. Ingress routes traffic to the Web Deployment pods.
+4. Web, Worker, and Scheduler deployments interact with RDS (PostgreSQL), ElastiCache (Redis), and Amazon OpenSearch Service.
+5. Secrets (DB, Redis, Django secret key) are securely fetched from AWS Secrets Manager and mounted into pods via the Secrets Store CSI Driver with IRSA permissions.
+6. Application and cluster metrics are collected in Amazon Managed Prometheus and visualized in Amazon Managed Grafana.
 
 #### **3.2. Component Breakdown**
 
 **3.2.1. AWS Infrastructure**
-* **VPC (Virtual Private Cloud):** An isolated virtual network spanning 3 AZs. It includes public subnets for network components (like the ALB) and private subnets for compute resources (EKS Nodes) and the data layer.
+* **VPC (Virtual Private Cloud):** Spans multiple AZs with public subnets for ALB and private subnets for EKS nodes and databases.
 * **EKS Cluster:**
     * **Control Plane:** Fully managed by AWS, distributed across multiple AZs for high availability.
-    * **Data Plane:** Comprised of EKS Managed Node Groups, running EC2 instances within the private subnets.
+    * **Node Groups:** EC2 worker nodes (multi-AZ), auto-scaled by the Cluster Autoscaler.
 
 **3.2.2. Data Layer**
-* **Database:** Amazon RDS for PostgreSQL service in a Multi-AZ configuration, ensuring automatic failover in case of an outage.
-* **Cache & Queue:** Amazon ElastiCache for Redis service, used for both caching and as a message queue. It is also configured in a Multi-AZ setup.
+* **Amazon RDS (PostgreSQL, Multi-AZ):** Relational database backend with automatic failover.
+* **Amazon ElastiCache (Redis, Multi-AZ):** For caching and task queues.
+* **Amazon OpenSearch Service (Multi-AZ):** For log indexing, search, and analytics.
 
 **3.2.3. Application Layer (Kubernetes)**
-* **Containerization:** The application is split into 3 separate Docker images (Web, RQ Worker, RQ Scheduler) using Multi-Stage Builds to optimize for size and security. The images are stored in Amazon ECR.
-* **Deployments:** Each application component will have its own Kubernetes Deployment, allowing for version management, replication, and rolling updates.
-* **Autoscaling:** A Horizontal Pod Autoscaler (HPA) will be used to automatically scale the number of web component pods based on CPU consumption.
-* **Traffic Management:** The AWS Load Balancer Controller will be used to automatically create and manage an ALB via a Kubernetes Ingress object, enabling secure external exposure of the service.
+* **Ingress & Services:** TRoute traffic from ALB to the right deployments
+* **Deployments:**
+* Web Deployment (frontend, auto-scaled with HPA).
+* RQ Worker Deployment (background tasks, 2 replicas).
+* Scheduler Deployment (periodic tasks, 1 replica).
+* **Autoscaling:**
+* HPA scales pods based on resource usage.
+* Cluster Autoscaler adjusts node count.
+* **Secrets Management:**
+* AWS Secrets Manager: Stores credentials and sensitive keys.
+* SecretProviderClass + CSI Driver: Mounts secrets directly into pods.
+* IRSA: Provides least-privilege IAM permissions to Kubernetes Service Accounts.
 
 ### **4. Security Design**
 * **IAM Roles for Service Accounts (IRSA):** Attaching dedicated IAM Roles with least-privilege permissions directly to the pods' Service Accounts. This eliminates the need to manage static access keys within the cluster.
@@ -63,8 +78,9 @@ The application is deployed on an EKS cluster spanning three Availability Zones.
 
 ### **6. Observability**
 * **Monitoring & Alerting:**
-    * **Prometheus:** To collect metrics from all cluster and application components.
-    * **Grafana:** To visualize the collected metrics in dashboards.
+    * **Amazon Managed Prometheus:** To collect metrics from all cluster and application components.
+    * **Amazon Managed Grafana:** To visualize the collected metrics in dashboards.
 * **Logging:**
-    * **Fluent Bit:** A DaemonSet that will run on every node in the cluster to collect logs from all containers.
-    * **Amazon CloudWatch:** Logs will be sent to CloudWatch Logs for centralized aggregation, analysis, and long-term storage.
+    * **OpenSearch:** for indexing and searching logs
+    * **CloudWatch Logs:** for aggregation and retention
+* **Alerting:** Grafana and CloudWatch provide real-time alerts based on defined thresholds.
