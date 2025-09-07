@@ -11,5 +11,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the monitoring script
 COPY cpu_monitor.py .
 
-# Run the script
-CMD ["python", "cpu_monitor.py"]
+# Run the script with unbuffered output
+CMD ["python", "-u", "cpu_monitor.py"]
