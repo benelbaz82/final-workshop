@@ -50,16 +50,16 @@ The architecture spans all layers of the system, from networking and compute to 
 **3.2.3. Application Layer (Kubernetes)**
 * **Ingress & Services:** TRoute traffic from ALB to the right deployments
 * **Deployments:**
-* Web Deployment (frontend, auto-scaled with HPA).
-* RQ Worker Deployment (background tasks, 2 replicas).
-* Scheduler Deployment (periodic tasks, 1 replica).
+  * Web Deployment (frontend, auto-scaled with HPA).
+  * RQ Worker Deployment (background tasks, 2 replicas).
+  * Scheduler Deployment (periodic tasks, 1 replica).
 * **Autoscaling:**
-* HPA scales pods based on resource usage.
-* Cluster Autoscaler adjusts node count.
+  * HPA scales pods based on resource usage.
+  * Cluster Autoscaler adjusts node count.
 * **Secrets Management:**
-* AWS Secrets Manager: Stores credentials and sensitive keys.
-* SecretProviderClass + CSI Driver: Mounts secrets directly into pods.
-* IRSA: Provides least-privilege IAM permissions to Kubernetes Service Accounts.
+  * AWS Secrets Manager: Stores credentials and sensitive keys.
+  * SecretProviderClass + CSI Driver: Mounts secrets directly into pods.
+  * IRSA: Provides least-privilege IAM permissions to Kubernetes Service Accounts.
 
 ### **4. Security Design**
 * **IAM Roles for Service Accounts (IRSA):** Attaching dedicated IAM Roles with least-privilege permissions directly to the pods' Service Accounts. This eliminates the need to manage static access keys within the cluster.
