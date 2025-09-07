@@ -144,12 +144,6 @@ dmypy.json
 ehthumbs.db
 Thumbs.db
 
-# Generated diagrams
-*.png
-*.jpg
-*.jpeg
-*.svg
-*.pdf
 
 # Logs
 *.log
