@@ -54,6 +54,7 @@ with Diagram(
         with Cluster("Node Groups (Auto-Scaling)", graph_attr=cluster_attr):
             ng_a = EC2("Nodes AZ-a")
             ng_b = EC2("Nodes AZ-b")
+            ng_c = EC2("Nodes AZ-c")
 
         with Cluster("status-page Namespace", graph_attr=cluster_attr):
             # Ingress + Service
@@ -62,7 +63,7 @@ with Diagram(
 
             # Deployments
             deploy_web = Deployment("web-deployment")
-            deploy_rq = Deployment("rq-deployment\n(replicas: 2)")
+            deploy_rq = Deployment("rq-deployment\n(replicas: 3)")
             deploy_sched = Deployment("scheduler-deployment\n(replicas: 1)")
 
             # HPA for web and RQ pods
@@ -70,8 +71,8 @@ with Diagram(
             hpa_rq = ApplicationAutoScaling("HPA\n(RQ pods)")
 
             # Pods
-            web_pods = Pod("Web Pods\n(replicas: 2)")
-            rq_pods = Pod("RQ Pods\n(replicas: 2)")
+            web_pods = Pod("Web Pods\n(replicas: 3)")
+            rq_pods = Pod("RQ Pods\n(replicas: 3)")
             sched_pod = Pod("Scheduler Pod\n(replicas: 1)")
 
             # AWS Secrets Manager Integration
@@ -109,6 +110,7 @@ with Diagram(
     # Cluster Autoscaler
     cluster_autoscaler >> ng_a
     cluster_autoscaler >> ng_b
+    cluster_autoscaler >> ng_c
 
     # AWS Secrets Manager Integration
     sm >> Edge(label="fetch secrets") >> spc
@@ -121,3 +123,6 @@ with Diagram(
 
     # Monitoring
     [deploy_web, deploy_rq, deploy_sched] >> Edge(label="metrics") >> prometheus >> grafana
+
+    # Cluster-wide monitoring connection (dashed line to avoid clutter)
+    eks >> Edge(label="cluster metrics", style="dashed") >> prometheus
