@@ -19,10 +19,13 @@ from diagrams.aws.compute import ECR, EKS
 from diagrams.aws.management import Cloudwatch
 
 # GitOps
-from diagrams.onprem.gitops import ArgoCD
+# from diagrams.onprem.gitops import ArgoCD
 
 # IaC
 from diagrams.onprem.iac import Terraform
+
+# K8s ecosystem
+from diagrams.k8s.ecosystem import Helm
 
 # Monitoring
 from diagrams.aws.management import AmazonManagedGrafana
@@ -51,7 +54,7 @@ with Diagram("CI/CD Pipeline", filename="cicd_pipeline", direction="LR", show=Fa
         push = GithubActions("Push to ECR")
 
     with Cluster("CD", graph_attr=cluster_attr):
-        deploy = ArgoCD("ArgoCD\nDeploy to Kubernetes")
+        deploy = Helm("Helm\nDeploy to Kubernetes")
 
     with Cluster("Infrastructure", graph_attr=cluster_attr):
         terraform = Terraform("Terraform\nProvision EKS & Infra")
