@@ -11,23 +11,22 @@
 
 1. [Introduction](#1-introduction)
 2. [System Overview](#2-system-overview)
-3. [Architectural Drivers](#3-architectural-drivers)
-4. [Solution Architecture](#4-solution-architecture)
-5. [AWS EKS Deployment Architecture](#5-aws-eks-deployment-architecture)
+3. [Application Architecture](#3-application-architecture)
+4. [Technology Stack](#4-technology-stack)
+5. [Architectural Drivers](#5-architectural-drivers)
 6. [Quality Attributes](#6-quality-attributes)
-7. [Technology Stack](#7-technology-stack)
-8. [Security Architecture](#8-security-architecture)
-9. [Monitoring and Observability](#9-monitoring-and-observability)
-10. [CI/CD Architecture](#10-cicd-architecture)
-11. [Constraints and Assumptions](#11-constraints-and-assumptions)
-12. [Risks and Mitigation](#12-risks-and-mitigation)
+7. [Infrastructure & Deployment](#7-infrastructure--deployment)
+8. [Security](#8-security)
+9. [Monitoring & Observability](#9-monitoring--observability)
+10. [CI/CD Pipeline](#10-cicd-pipeline)
+11. [Constraints & Risks](#11-constraints--risks)
 
 ---
 
 ## 1. Introduction
 
 ### 1.1 Purpose
-This Software Architecture Document (SAD) describes the comprehensive architecture for the Status-Page application - a Django-based web application designed to provide system status monitoring and incident management capabilities. The document covers the cloud-native AWS EKS deployment architecture for production environments.
+This Software Architecture Document describes the comprehensive architecture for the Status-Page application - a Django-based web application designed to provide system status monitoring and incident management capabilities. The document covers the cloud-native AWS EKS deployment architecture for production environments.
 
 ### 1.2 Scope
 This document encompasses:
@@ -36,12 +35,6 @@ This document encompasses:
 - Infrastructure, security, and operational considerations
 - CI/CD pipeline architecture
 - Quality attributes and non-functional requirements
-
-### 1.3 Audience
-- Software architects and developers
-- DevOps engineers
-- System administrators
-- Project stakeholders
 
 ---
 
@@ -63,423 +56,176 @@ The Status-Page application serves as a centralized platform for:
 
 ---
 
-## 3. Architectural Drivers
+## 3. Application Architecture
 
-### 3.1 Functional Requirements
+### 3.1 Core Components
+- **Web Layer**: Django application with Gunicorn WSGI server
+- **Background Processing**: RQ workers for async tasks (notifications, monitoring)
+- **Scheduler**: Periodic task management for health checks and maintenance
+- **Data Layer**: PostgreSQL database with Redis cache and message queue
+
+### 3.2 Key Features
 - Multi-tenant status page management
-- Real-time status updates and notifications
-- Incident tracking and communication
-- Service dependency mapping
-- Historical reporting and analytics
+- Real-time status monitoring and incident tracking
+- RESTful API for external integrations
+- Automated notifications and reporting
 
-### 3.2 Quality Attributes
-
-#### 3.2.1 High Availability
-- **Target**: 99.9% uptime
-- **Strategy**: Multi-AZ deployment, redundant components
-- **Measurement**: System availability metrics
-
-#### 3.2.2 Scalability
-- **Target**: Handle 10,000+ concurrent users
-- **Strategy**: Horizontal scaling, auto-scaling policies
-- **Measurement**: Response time under load
-
-#### 3.2.3 Performance
-- **Target**: <200ms response time for 95% of requests
-- **Strategy**: Caching, CDN, database optimization
-- **Measurement**: Application performance monitoring
-
-#### 3.2.4 Security
-- **Target**: SOC 2 compliance ready
-- **Strategy**: HTTPS, secrets management, RBAC
-- **Measurement**: Security audit compliance
+**Architecture Diagram:** See `arch/status_page_architecture.png`
 
 ---
 
-## 4. Solution Architecture
+## 4. Technology Stack
 
-### 4.1 Logical Architecture
+### 4.1 Application Stack
+- **Framework**: Django 4.x with Python 3.10+
+- **WSGI Server**: Gunicorn
+- **Database**: PostgreSQL 13+
+- **Cache/Queue**: Redis 7.x with RQ
+- **Web Server**: Nginx
 
-**Architecture Diagram:** See `arch/status_page_architecture.png` for visual representation.
-
-The logical architecture follows a layered approach:
-
-### 4.2 Component Architecture
-
-#### 4.2.1 Web Application Layer
-- **Technology**: Django Framework with Gunicorn WSGI server
-- **Responsibilities**:
-  - HTTP request/response handling
-  - Business logic implementation
-  - User interface rendering
-  - API endpoint management
-- **Patterns**: MVC (Model-View-Controller)
-
-#### 4.2.2 Background Processing Layer
-- **Worker Processes**: Handle asynchronous tasks
-  - Email notifications
-  - Status monitoring
-  - Data synchronization
-  - Report generation
-- **Scheduler Process**: Manages recurring tasks
-  - Health checks
-  - Maintenance operations
-  - Automated reporting
-
-#### 4.2.3 Data Layer
-- **Primary Database**: PostgreSQL
-  - Transactional data
-  - User accounts and permissions
-  - System configuration
-  - Incident history
-- **Cache Layer**: Redis
-  - Session storage
-  - Frequently accessed data
-  - Temporary data storage
-- **Message Queue**: Redis (separate database)
-  - Asynchronous task queuing
-  - Inter-process communication
-
-#### 4.2.4 Reverse Proxy Layer
-- **Technology**: Nginx
-- **Responsibilities**:
-  - SSL termination
-  - Static file serving
-  - Load balancing
-  - Request routing
-  - Security headers
+### 4.2 Infrastructure Stack
+- **Orchestration**: Kubernetes (AWS EKS)
+- **IaC**: Terraform
+- **CI/CD**: GitHub Actions
+- **Monitoring**: Prometheus & Grafana
+- **Registry**: Amazon ECR
 
 ---
 
-## 5. AWS EKS Deployment Architecture
+## 5. Architectural Drivers
 
-### 5.1 Architecture Overview
-The AWS EKS deployment provides a highly available, scalable, cloud-native architecture suitable for production environments.
+### 5.1 Functional Requirements
+- Multi-tenant status page management
+- Real-time status monitoring and incident tracking
+- Automated notifications and reporting
+- RESTful API integrations
 
-**Architecture Diagrams:** 
-- Network Architecture: `arch/aws_network/aws_network_and_data.png`
-- EKS with Secrets Management: `arch/eks_alb_ingress_with_secrets/eks_alb_ingress_with_secrets.png`
-
-### 5.2 Infrastructure Components
-
-**Network Layer:**
-- **VPC**: Multi-AZ Virtual Private Cloud (10.0.0.0/16)
-- **Subnets**: 
-  - Public subnets (10.0.1-3.0/24) for load balancers
-  - Private app subnets (10.0.11-13.0/24) for EKS nodes
-  - Private data subnets (10.0.21-23.0/24) for databases
-- **Internet Gateway**: External connectivity
-- **NAT Gateways**: Outbound internet access for private subnets
-
-**Compute Layer:**
-- **EKS Control Plane**: Managed Kubernetes control plane
-- **Node Groups**: Auto-scaling EC2 instances across multiple AZs
-- **Application Load Balancer**: Layer 7 load balancing
-- **Auto Scaling Groups**: Dynamic capacity management
-
-**Data Layer:**
-- **Amazon RDS**: Multi-AZ PostgreSQL with automatic failover
-- **Amazon ElastiCache**: Multi-AZ Redis for caching and queuing
-- **Amazon OpenSearch**: Log aggregation and search
-
-### 5.3 Kubernetes Architecture
-
-**Namespace Structure:**
-- `status-page`: Application workloads
-- `kube-system`: System components
-- `aws-load-balancer-controller`: ALB controller
-
-**Workload Distribution:**
-- **Web Deployment**: 3 replicas with Horizontal Pod Autoscaler
-- **Worker Deployment**: 3 replicas for background processing
-- **Scheduler Deployment**: 1 replica for task scheduling
-
-**Service Mesh:**
-- Ingress Controller for external traffic routing
-- Services for internal communication
-- Network policies for traffic segmentation
+### 5.2 Quality Attributes
+- **Availability**: 99.9% uptime target with multi-AZ deployment
+- **Scalability**: Horizontal scaling with auto-scaling policies
+- **Performance**: <200ms response time with caching and optimization
+- **Security**: HTTPS/TLS encryption and secure session management
 
 ---
 
 ## 6. Quality Attributes
 
 ### 6.1 Availability
-**AWS EKS Deployment:**
-- Multi-AZ redundancy eliminates single points of failure
-- Automatic failover for managed services
-- Self-healing capabilities through Kubernetes
-- Target: 99.9% availability
+- Multi-AZ deployment with automatic failover
+- Kubernetes self-healing capabilities
+- Target: 99.9% uptime
 
 ### 6.2 Scalability
-**AWS EKS Deployment:**
 - Horizontal Pod Autoscaler for application scaling
-- Cluster Autoscaler for infrastructure scaling
+- Cluster Autoscaler for infrastructure
 - Elastic managed services (RDS, ElastiCache)
-- Supports 10,000+ concurrent users
 
 ### 6.3 Performance
-**Optimization Strategies:**
 - Redis caching for frequently accessed data
-- CDN integration (CloudFront) for static content
-- Database query optimization
-- Connection pooling and persistent connections
-
-**Monitoring:**
-- Application Performance Monitoring (APM)
-- Database performance metrics
-- Infrastructure resource utilization
+- CDN integration for static content
+- Database optimization and monitoring
 
 ### 6.4 Security
-**Application Security:**
 - HTTPS/TLS encryption in transit
-- Secure session management
-- Input validation and sanitization
-- CSRF protection
-
-**Infrastructure Security:**
 - Network segmentation with security groups
-- IAM roles with least privilege principle
-- Secrets management with AWS Secrets Manager
+- AWS Secrets Manager for sensitive data
 - Regular security patching
 
 ---
 
-## 7. Technology Stack
+## 7. Infrastructure & Deployment
 
-### 7.1 Application Stack
-- **Backend Framework**: Django 4.x
-- **WSGI Server**: Gunicorn
-- **Database**: PostgreSQL 13+
-- **Cache/Queue**: Redis 7.x
-- **Task Queue**: RQ (Redis Queue)
-- **Web Server**: Nginx
+### 7.1 AWS EKS Architecture
+**Network**: Multi-AZ VPC with public/private subnets
+**Compute**: EKS cluster with auto-scaling node groups
+**Load Balancing**: Application Load Balancer with ingress controller
+**Data**: Multi-AZ RDS PostgreSQL and ElastiCache Redis
 
-### 7.2 Infrastructure Stack
+### 7.2 Kubernetes Workloads
+- **Web Deployment**: 3 replicas with HPA
+- **Worker Deployment**: 3 replicas for background tasks
+- **Scheduler**: 1 replica for periodic tasks
 
-**AWS EKS Deployment:**
-- **Container Orchestration**: Kubernetes (EKS)
-- **Infrastructure as Code**: Terraform
-- **Service Mesh**: AWS Load Balancer Controller
-- **Monitoring**: Prometheus & Grafana (Managed)
-
-### 7.3 Development & Operations
-- **Version Control**: Git
-- **CI/CD**: GitHub Actions
-- **Container Registry**: Amazon ECR
-- **Infrastructure Monitoring**: CloudWatch
-- **Log Management**: OpenSearch Service
+**Architecture Diagrams**: 
+- Network: `arch/aws_network/aws_network_and_data.png`
+- EKS: `arch/eks_alb_ingress_with_secrets/eks_alb_ingress_with_secrets.png`
 
 ---
 
-## 8. Security Architecture
+## 8. Security
 
 ### 8.1 Authentication & Authorization
-- **User Authentication**: Django's built-in authentication system
-- **Session Management**: Secure session cookies with Redis backend
-- **Role-Based Access Control**: Django permissions and groups
-- **API Authentication**: Token-based authentication for API access
+- Django authentication with secure session management
+- Role-based access control and API token authentication
 
 ### 8.2 Data Protection
-- **Encryption at Rest**: 
-  - RDS encryption for database
-  - EBS encryption for volumes
-- **Encryption in Transit**: 
-  - HTTPS/TLS for all communications
-  - SSL/TLS for database connections
-- **Secrets Management**: 
-  - AWS Secrets Manager for sensitive configuration
-  - Kubernetes secrets for application secrets
+- Encryption at rest (RDS, EBS)
+- Encryption in transit (HTTPS/TLS)
+- AWS Secrets Manager for sensitive configuration
 
 ### 8.3 Network Security
-- **Security Groups**: Restrictive firewall rules
-- **Network ACLs**: Additional layer of network filtering
-- **VPC Isolation**: Private subnets for application and data layers
-- **WAF Integration**: Web Application Firewall for additional protection
+- Security groups and network ACLs
+- VPC isolation with private subnets
+- WAF integration for additional protection
 
-### 8.4 Compliance & Auditing
-- **Access Logging**: Comprehensive audit trails
-- **CloudTrail Integration**: AWS API call logging
-- **Security Monitoring**: Automated security scanning
-- **Compliance Framework**: SOC 2 Type II readiness
+### 8.4 Compliance
+- SOC 2 Type II readiness
+- CloudTrail for API logging
+- Automated security scanning
 
 ---
 
-## 9. Monitoring and Observability
+## 9. Monitoring & Observability
 
 ### 9.1 Application Monitoring
-- **Metrics Collection**: Custom application metrics
-- **Performance Tracking**: Response time, throughput, error rates
-- **Business Metrics**: User engagement, incident resolution times
-- **Health Checks**: Liveness and readiness probes
+- Custom metrics collection and performance tracking
+- Health checks and business metrics
+- Error tracking with correlation IDs
 
 ### 9.2 Infrastructure Monitoring
-- **Resource Utilization**: CPU, memory, disk, network
-- **Container Metrics**: Pod performance and resource consumption
-- **Database Metrics**: Query performance, connection pools
-- **Network Metrics**: Traffic patterns, latency
+- Resource utilization (CPU, memory, network)
+- Container and database performance metrics
+- CloudWatch and Prometheus integration
 
-### 9.3 Logging Strategy
-- **Application Logs**: Structured logging with correlation IDs
-- **Access Logs**: HTTP request/response logging
-- **Audit Logs**: Security and compliance events
-- **Error Tracking**: Centralized error reporting and alerting
-
-### 9.4 Alerting Framework
-- **Threshold-Based Alerts**: Resource utilization limits
-- **Anomaly Detection**: Machine learning-based alerting
-- **Business Logic Alerts**: Application-specific conditions
-- **Escalation Policies**: Multi-tier notification system
+### 9.3 Logging & Alerting
+- Structured logging with centralized aggregation
+- Threshold-based and anomaly detection alerts
+- Multi-tier notification system
 
 ---
 
-## 10. CI/CD Architecture
+## 10. CI/CD Pipeline
 
-### 10.1 Pipeline Overview
+### 10.1 Pipeline Stages
+- **Source**: GitHub repository with automated triggers
+- **Build**: Docker image creation and security scanning
+- **Test**: Unit tests, integration tests, and code quality checks
+- **Deploy**: Automated staging deployment and manual production approval
 
-**CI/CD Pipeline Diagram:** See `arch/cicd_pipeline/cicd_pipeline.png` for visual representation.
+### 10.2 Key Features
+- Multi-stage Docker builds with optimization
+- Automated security scanning and vulnerability assessment
+- Rolling updates with zero-downtime deployment
+- Infrastructure as Code with Terraform
 
-The CI/CD pipeline consists of four main stages:
-- **Source Control**: GitHub repository management
-- **Build**: Container image creation and packaging
-- **Test**: Automated testing and quality checks
-- **Deploy**: Deployment to EKS cluster
-
-### 10.2 Pipeline Stages
-
-#### 10.2.1 Source Stage
-- **Trigger**: Git push to main branch or pull request
-- **Actions**: Code checkout, dependency caching
-- **Artifacts**: Source code, dependency cache
-
-#### 10.2.2 Build Stage
-- **Docker Image Build**: Multi-stage Dockerfile optimization
-- **Image Tagging**: Semantic versioning with git commit hash
-- **Security Scanning**: Container vulnerability assessment
-- **Artifacts**: Container images pushed to ECR
-
-#### 10.2.3 Test Stage
-- **Unit Tests**: Django test suite execution
-- **Integration Tests**: Database and Redis connectivity
-- **Code Quality**: Static analysis and linting
-- **Coverage Reports**: Test coverage metrics
-
-#### 10.2.4 Deploy Stage
-- **Staging Deployment**: Automatic deployment to staging environment
-- **Smoke Tests**: Basic functionality verification
-- **Production Deployment**: Manual approval gate
-- **Rolling Updates**: Zero-downtime deployment strategy
-
-### 10.3 Infrastructure as Code
-- **Terraform Modules**: Reusable infrastructure components
-- **Version Control**: Infrastructure changes tracked in Git
-- **Plan/Apply Workflow**: Review and approval process
-- **State Management**: Remote state storage with locking
+**Pipeline Diagram**: See `arch/cicd_pipeline/cicd_pipeline.png`
 
 ---
 
-## 11. Constraints and Assumptions
+## 11. Constraints & Risks
 
 ### 11.1 Technical Constraints
-- **Language**: Python 3.10+ requirement
-- **Framework**: Django framework dependency
-- **Database**: PostgreSQL compatibility requirement
-- **Container**: Docker containerization standard
-- **Cloud Provider**: AWS-specific managed services
+- Python 3.10+, Django framework, PostgreSQL database
+- Docker containerization and AWS cloud provider
+- SOC 2 compliance and cost optimization requirements
 
-### 11.2 Operational Constraints
-- **Budget**: Cost optimization for AWS resources
-- **Compliance**: SOC 2 Type II requirements
-- **Recovery Time**: RTO < 1 hour, RPO < 15 minutes
-- **Maintenance Windows**: Limited downtime allowance
-
-### 11.3 Assumptions
-- **Traffic Patterns**: Predictable load with occasional spikes
-- **Data Growth**: Linear growth pattern
-- **Team Expertise**: Kubernetes and AWS knowledge available
-- **Network Connectivity**: Reliable internet connectivity
-- **Third-party Services**: Stable external service dependencies
-
----
-
-## 12. Risks and Mitigation
-
-### 12.1 Technical Risks
-
-#### 12.1.1 EKS Control Plane Failure
-- **Risk**: EKS control plane becomes unavailable
-- **Impact**: Medium - Temporary management plane unavailability
-- **Probability**: Low
-- **Mitigation**: 
-  - Multi-AZ control plane deployment
-  - AWS SLA coverage for EKS service
-  - Automated recovery procedures
-
-#### 12.1.2 Database Performance Degradation
-- **Risk**: Database becomes performance bottleneck
-- **Impact**: Medium - Slow response times
-- **Probability**: Medium
-- **Mitigation**:
-  - Implement database monitoring and alerting
-  - Optimize queries and add appropriate indexes
-  - Consider read replicas for read-heavy workloads
-
-#### 12.1.3 Container Security Vulnerabilities
-- **Risk**: Security vulnerabilities in base images
-- **Impact**: High - Potential security breach
-- **Probability**: Low
-- **Mitigation**:
-  - Regular base image updates
-  - Automated security scanning in CI/CD
-  - Runtime security monitoring
-
-### 12.2 Operational Risks
-
-#### 12.2.1 AWS Service Outages
-- **Risk**: Regional AWS service disruption
-- **Impact**: High - Service unavailability
-- **Probability**: Low
-- **Mitigation**:
-  - Multi-AZ deployment strategy
-  - Cross-region backup strategy
-  - Service health monitoring and alerting
-
-#### 12.2.2 Data Loss
-- **Risk**: Accidental data deletion or corruption
-- **Impact**: High - Business continuity impact
-- **Probability**: Low
-- **Mitigation**:
-  - Automated backup procedures
-  - Point-in-time recovery capabilities
-  - Backup testing and validation
-
-#### 12.2.3 Configuration Drift
-- **Risk**: Manual changes causing configuration inconsistency
-- **Impact**: Medium - Deployment issues
-- **Probability**: Medium
-- **Mitigation**:
-  - Infrastructure as Code enforcement
-  - Configuration management tools
-  - Regular infrastructure audits
-
-### 12.3 Business Risks
-
-#### 12.3.1 Scalability Limitations
-- **Risk**: Unable to handle unexpected traffic growth
-- **Impact**: High - Customer experience degradation
-- **Probability**: Medium
-- **Mitigation**:
-  - Auto-scaling policies and procedures
-  - Load testing and capacity planning
-  - Performance monitoring and alerting
-
-#### 12.3.2 Compliance Violations
-- **Risk**: Failure to meet regulatory requirements
-- **Impact**: High - Legal and financial consequences
-- **Probability**: Low
-- **Mitigation**:
-  - Regular compliance audits
-  - Automated compliance monitoring
-  - Staff training and awareness programs
+### 11.2 Key Risks & Mitigation
+- **EKS Control Plane Failure**: Multi-AZ deployment and AWS SLA coverage
+- **Database Performance**: Monitoring, query optimization, read replicas
+- **Security Vulnerabilities**: Regular updates and automated scanning
+- **AWS Service Outages**: Multi-AZ strategy and cross-region backups
+- **Configuration Drift**: Infrastructure as Code enforcement
+- **Scalability Limitations**: Auto-scaling policies and capacity planning
 
 ---
 
