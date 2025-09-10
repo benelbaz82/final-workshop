@@ -34,6 +34,7 @@ resource "aws_ecr_repository" "main" {
 
   tags = {
     Project     = var.project_name
+    Environment = "production"
     owner       = var.owner
   }
 }
