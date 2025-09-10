@@ -1,4 +1,4 @@
-name: VPC Infra (With S3 Backend Only, BenAmiVPC)
+name: VPC Infra (One-File, 3x NAT, BenAmiVPC)
 
 on:
   workflow_dispatch:
@@ -39,7 +39,7 @@ jobs:
         with:
           terraform_version: 1.7.5
 
-      - name: Create Terraform config
+      - name: Create single Terraform file
         run: |
           mkdir -p infra
           cat > infra/main.tf <<'HCL'
@@ -51,19 +51,14 @@ jobs:
                 version = "~> 5.0"
               }
             }
-            backend "s3" {
-              bucket         = "benami-terraform-state"
-              key            = "network/vpc/terraform.tfstate"
-              region         = "us-east-1"
-              encrypt        = true
-            }
           }
-
+          ###################
+          # Provider + Tags #
+          ###################
           variable "region" {
             type    = string
             default = "us-east-1"
           }
-
           provider "aws" {
             region = var.region
             default_tags {
@@ -72,147 +67,175 @@ jobs:
               }
             }
           }
-
+          #####################
+          # Vars / Locals     #
+          #####################
           variable "vpc_cidr" {
             type    = string
             default = "10.0.0.0/16"
           }
-
+          variable "azs" {
+            type    = list(string)
+            default = ["us-east-1a","us-east-1b","us-east-1c"]
+          }
           variable "name" {
             type    = string
             default = "BenAmiVPC"
           }
-
-          data "aws_availability_zones" "this" {
-            state = "available"
-          }
-
           locals {
-            azs    = slice(data.aws_availability_zones.this.names, 0, 3)
-            az_map = { for idx, az in local.azs : tostring(idx) => az }
+            az_map = { for idx, az in var.azs : tostring(idx) => az }
           }
-
+          #############
+          # Who am I? #
+          #############
+          data "aws_caller_identity" "current" {}
+          #########
+          #  VPC  #
+          #########
           resource "aws_vpc" "this" {
             cidr_block           = var.vpc_cidr
             enable_dns_hostnames = true
             enable_dns_support   = true
-            tags = { Name = "${var.name}-vpc" }
+            tags = {
+              Name = "${var.name}-vpc"
+            }
           }
-
+          ########################
+          # Internet Gateway (1) #
+          ########################
           resource "aws_internet_gateway" "igw" {
             vpc_id = aws_vpc.this.id
-            tags   = { Name = "${var.name}-igw" }
+            tags = {
+              Name = "${var.name}-igw"
+            }
           }
-
+          ######################
+          # Public Subnets (x3)
+          ######################
           resource "aws_subnet" "public" {
             for_each                = local.az_map
             vpc_id                  = aws_vpc.this.id
             availability_zone       = each.value
             map_public_ip_on_launch = true
-            cidr_block              = cidrsubnet(var.vpc_cidr, 4, tonumber(each.key))
+            cidr_block              = cidrsubnet(var.vpc_cidr, 4, tonumber(each.key)) # /20s: 0..2
             tags = {
               Name = "${var.name}-public-${each.value}"
               Tier = "public"
             }
           }
-
+          #######################
+          # Private Subnets (x3)
+          #######################
           resource "aws_subnet" "private" {
             for_each          = local.az_map
             vpc_id            = aws_vpc.this.id
             availability_zone = each.value
-            cidr_block        = cidrsubnet(var.vpc_cidr, 4, 8 + tonumber(each.key))
+            cidr_block        = cidrsubnet(var.vpc_cidr, 4, 8 + tonumber(each.key))  # /20s: 8..10
             tags = {
               Name = "${var.name}-private-${each.value}"
               Tier = "private"
             }
           }
-
+          ##############################
+          # NAT EIPs + NAT GWs (3x AZ)
+          ##############################
           resource "aws_eip" "nat" {
             for_each = aws_subnet.public
             domain   = "vpc"
-            tags     = { Name = "${var.name}-nat-eip-${each.key}" }
+            tags = {
+              Name = "${var.name}-nat-eip-${each.key}"
+            }
           }
-
           resource "aws_nat_gateway" "nat" {
             for_each      = aws_subnet.public
             allocation_id = aws_eip.nat[each.key].id
             subnet_id     = each.value.id
             depends_on    = [aws_internet_gateway.igw]
-            tags          = { Name = "${var.name}-nat-${each.key}" }
+            tags = {
+              Name = "${var.name}-nat-${each.key}"
+            }
           }
-
+          ######################################
+          # Public Route Table (shared) -> IGW #
+          ######################################
           resource "aws_route_table" "public" {
             vpc_id = aws_vpc.this.id
-            tags   = { Name = "${var.name}-public-rt" }
+            tags = {
+              Name = "${var.name}-public-rt"
+            }
           }
-
           resource "aws_route" "public_igw" {
             route_table_id         = aws_route_table.public.id
             destination_cidr_block = "0.0.0.0/0"
             gateway_id             = aws_internet_gateway.igw.id
           }
-
           resource "aws_route_table_association" "public_assoc" {
             for_each       = aws_subnet.public
             subnet_id      = each.value.id
             route_table_id = aws_route_table.public.id
           }
-
+          #############################################################
+          # Private Route Tables (per AZ) -> NAT GW של אותה AZ (HA)   #
+          #############################################################
           resource "aws_route_table" "private" {
             for_each = local.az_map
             vpc_id   = aws_vpc.this.id
-            tags     = { Name = "${var.name}-private-rt-${each.value}" }
+            tags = {
+              Name = "${var.name}-private-rt-${each.value}"
+            }
           }
-
           resource "aws_route" "private_nat" {
             for_each               = local.az_map
             route_table_id         = aws_route_table.private[each.key].id
             destination_cidr_block = "0.0.0.0/0"
             nat_gateway_id         = aws_nat_gateway.nat[each.key].id
           }
-
           resource "aws_route_table_association" "private_assoc" {
             for_each       = local.az_map
             subnet_id      = aws_subnet.private[each.key].id
             route_table_id = aws_route_table.private[each.key].id
           }
-
+          ##########
+          # Outputs
+          ##########
+          output "caller_identity" {
+            value = {
+              account_id = data.aws_caller_identity.current.account_id
+              arn        = data.aws_caller_identity.current.arn
+              user_id    = data.aws_caller_identity.current.user_id
+            }
+          }
           output "vpc_id" {
             value = aws_vpc.this.id
           }
-
           output "public_subnets" {
             value = [for _, s in aws_subnet.public : s.id]
           }
-
           output "private_subnets" {
             value = [for _, s in aws_subnet.private : s.id]
           }
-
           output "nat_gateway_ids" {
             value = [for _, n in aws_nat_gateway.nat : n.id]
           }
-
           output "internet_gateway" {
             value = aws_internet_gateway.igw.id
           }
           HCL
-
       - name: Terraform init
         working-directory: infra
-        run: terraform init -input=false -no-color
+        run: terraform init
 
       - name: Terraform plan
         if: ${{ inputs.action == 'apply' }}
         working-directory: infra
-        run: terraform plan -out=tfplan -input=false -no-color
+        run: terraform plan -out=tfplan
 
       - name: Terraform apply
         if: ${{ inputs.action == 'apply' }}
         working-directory: infra
         run: terraform apply -auto-approve tfplan
 
-      - name: Terraform destroy
+      - name: Terraform destroy (⚠️ tears down everything)
         if: ${{ inputs.action == 'destroy' }}
         working-directory: infra
         run: terraform destroy -auto-approve
