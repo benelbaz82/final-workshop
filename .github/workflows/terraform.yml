@@ -8,7 +8,7 @@
           - 'terraform/**' # Only run if changes are in the terraform directory
       pull_request:
         branches:
-          - main # Trigger on pull requests targeting the main branch
+          - main # Trigger on pull requests targeting the main branch 
         paths:
           - 'terraform/**'
 
