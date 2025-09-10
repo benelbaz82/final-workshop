@@ -45,6 +45,19 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
+    - name: Debug build context
+      run: |
+        echo "Current directory:"
+        pwd
+        echo "Contents of status-page-docker-architecture:"
+        ls -la ./status-page-docker-architecture/
+        echo "Contents of status-page directory:"
+        ls -la ./status-page-docker-architecture/status-page/
+        echo "Check requirements.txt:"
+        ls -la ./status-page-docker-architecture/status-page/requirements.txt
+        echo "File permissions:"
+        stat ./status-page-docker-architecture/status-page/requirements.txt
+
     - name: Build, tag, and push image to Amazon ECR
       id: build-image
       env:

@@ -18,14 +18,14 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy requirements and install Python packages
-COPY status-page/requirements.txt .
+COPY ./status-page/requirements.txt .
 RUN pip install --upgrade pip
 RUN pip install rq-scheduler --force-reinstall
 RUN pip install -r requirements.txt
 
 # Copy the application code
 # Modified for scheduler fix
-COPY status-page/ .
+COPY ./status-page/ .
 
 # Make upgrade script executable
 RUN chmod +x upgrade.sh
