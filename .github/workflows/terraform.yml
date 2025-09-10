@@ -12,6 +12,10 @@
         paths:
           - 'terraform/**'
 
+    env:
+      MY_AWS_REGION: us-east-1
+      TF_VERSION: '1.5.0'
+
     jobs:
       terraform:
         runs-on: ubuntu-latest # Specify the runner environment
@@ -22,7 +26,14 @@
           - name: Setup Terraform
             uses: hashicorp/setup-terraform@v3 # Action to set up Terraform CLI
             with:
-              terraform_version: 1.x.x # Specify your desired Terraform version
+              terraform_version: ${{ env.TF_VERSION }}
+
+          - name: Configure AWS Credentials
+            uses: aws-actions/configure-aws-credentials@v4
+            with:
+              aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+              aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+              aws-region: ${{ env.MY_AWS_REGION }}
 
           - name: Terraform Init
             id: init
@@ -44,15 +55,9 @@
             if: github.event_name == 'pull_request' # Only run plan on pull requests
             run: terraform plan -no-color -input=false
             working-directory: ./terraform
-            env:
-              AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }} # Example: Provide cloud credentials
-              AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
           - name: Terraform Apply
             id: apply
             if: github.event_name == 'push' && github.ref == 'refs/heads/main' # Only apply on pushes to main
             run: terraform apply -auto-approve -input=false
             working-directory: ./terraform
-            env:
-              AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-              AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
