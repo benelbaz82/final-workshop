@@ -12,6 +12,7 @@ variable "owner" {
 
 # AWS Provider configuration
 provider "aws" {
+  region = env("MY_AWS_REGION")
 
   # Authentication will be done using AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
   # environment variables set in GitHub Actions
@@ -26,9 +27,9 @@ resource "aws_ecr_repository" "main" {
   }
 
   tags = {
-    Project = var.project_name
+    Project     = var.project_name
     Environment = "dev"
-    owner = var.owner
+    owner       = var.owner
   }
 }
 
