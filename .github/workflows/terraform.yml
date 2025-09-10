@@ -19,6 +19,7 @@
     jobs:
       terraform:
         runs-on: ubuntu-latest # Specify the runner environment
+        environment: production
         steps:
           - name: Checkout code
             uses: actions/checkout@v4 # Action to checkout your repository code
