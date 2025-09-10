@@ -1,54 +1,62 @@
-# Status-Page Docker Setup
+<div align="center">
+    <img alt="Status Page" src="https://cdn.herrtxbias.net/status-page/logo_gray/logo_small.png"></a>
+</div>
+<br />
+<p align="center">
+    <a href="https://github.com/Status-Page/Status-Page"><img alt="GitHub license" src="https://img.shields.io/github/license/Status-Page/Status-Page"></a>
+    <a href="https://github.com/Status-Page/Status-Page/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/Status-Page/Status-Page"></a>
+    <a href="https://github.com/Status-Page/Status-Page/network"><img alt="GitHub forks" src="https://img.shields.io/github/forks/Status-Page/Status-Page"></a>
+    <a href="https://github.com/Status-Page/Status-Page/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/Status-Page/Status-Page"></a>
+    <a href="https://github.com/Status-Page/Status-Page/releases"><img alt="GitHub latest releas" src="https://img.shields.io/github/release/Status-Page/Status-Page"></a>
+    <a href="https://www.codacy.com/gh/Status-Page/Status-Page/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Status-Page/Status-Page&amp;utm_campaign=Badge_Grade"><img src="https://app.codacy.com/project/badge/Grade/250b53ad99ca432cbac8d761a975b34d"/></a>
+</p>
 
-This document outlines the setup and architecture for running the Status-Page application using Docker.
+## Overview
+- Components
+- Report incidents
+- JSON API
+- Metrics
+- Two Factor Authentication
+- Markdown support in incident / maintenance messages
+- Subscriptions for Notifications
+- Custom Plugins
 
-## Architecture
+## Requirements
+| Dependency       | Minimum Version | Optional |
+|------------------|-----------------|----------|
+| Python           | 3.10            | no       |
+| PostgreSQL       | 12              | no       |
+| Redis            | 4.0             | no       |
+| SMTP Mail Server | ---             | yes      |
 
-The application is composed of several services orchestrated by `docker-compose`:
+## Installation & Updates
+Please have a look at our [Documentation](https://docs.status-page.dev/).
 
-- **`nginx`**: Acts as a reverse proxy, directing traffic to the `web` service. It also serves static files directly for better performance.
-- **`web`**: The main Status-Page application, a Django project running with Gunicorn. It handles all the application logic and API requests.
-- **`postgres`**: A PostgreSQL database used as the primary data store for the application.
-- **`redis`**: An in-memory data store, used by the application for caching and as a message broker for background tasks.
-- **`scheduler`**: A service that schedules recurring tasks for the application.
-- **`worker`**: A service that processes background jobs from a queue (e.g., sending notifications).
+## Public Demo
+We have a public Demo available: https://demo.status-page.dev
 
-## Environment Variables
+## Versioning
+We use semantic versioning. A version number has the following structure:
+````
+v 1 . 0 . 0
+  ^   ^   ^
+  |   |   |
+  |   |   Patch (Bug fixes)
+  |   |
+  |   Minor (No breaking changes to the Software, e.g. adding new features)
+  |
+  Major (Breaking changes to the Software)
+````
 
-You can customize the superuser credentials using these environment variables in `docker-compose.yml`:
+## Documentation
+You can find the Documentation [here](https://docs.status-page.dev/).
 
-- `SUPERUSER_USERNAME`: Username for the admin user (default: `admin`)
-- `SUPERUSER_EMAIL`: Email for the admin user (default: `admin@example.com`)
-- `SUPERUSER_PASSWORD`: Password for the admin user (default: `admin123`)
+## Other Licenses and Acknowledgements
+### Tailwind UI
+We are using Tailwind UI Components in this App. You are **NOT** allowed to reuse these Components in your own App!
 
-## Current Credentials
+See their [License](https://www.notion.so/Tailwind-UI-License-644418bb34ad4fa29aac9b82e956a867) for more information.
 
-**Username:** `admin`  
-**Password:** `admin`  
-**Email:** `admin@example.com`
-
-## Accessing the Application
-
-1. The application runs on `http://localhost`
-2. Go to `http://localhost/dashboard/login/` to log in
-3. Use the credentials above to access the admin panel
-
-## Commands
-
-```bash
-# Start the application
-docker-compose up
-
-# Stop the application
-docker-compose down
-
-# Rebuild and restart
-docker-compose up --build
-
-# View logs
-docker-compose logs app
-
-# Access Django shell
-docker-compose exec app python3 statuspage/manage.py shell
-```</content>
-<parameter name="filePath">c:\Users\amitayb\Desktop\final test\README.md
+### NetBox
+As you may have noticed, the base structure for many parts of the app is derived
+from [NetBox](https://github.com/netbox-community/netbox), this made development much easier.
