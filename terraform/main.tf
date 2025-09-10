@@ -16,21 +16,6 @@ variable "owner" {
   default     = "benami"
 }
 
-# For local development - credentials from environment variables
-variable "aws_access_key_id" {
-  description = "AWS Access Key ID (for local development)"
-  type        = string
-  default     = null
-  sensitive   = true
-}
-
-variable "aws_secret_access_key" {
-  description = "AWS Secret Access Key (for local development)"
-  type        = string
-  default     = null
-  sensitive   = true
-}
-
 # For GitHub Actions OIDC
 variable "use_oidc_provider" {
   description = "Use OIDC provider for GitHub Actions"
@@ -96,10 +81,8 @@ resource "aws_iam_role_policy_attachment" "github_actions_ecr" {
 provider "aws" {
   region = var.aws_region
 
-  # Use credentials from environment variables (for local development and GitHub Actions)
-  # In GitHub Actions, these will be set from secrets or OIDC role
-  access_key = var.aws_access_key_id
-  secret_key = var.aws_secret_access_key
+  # Authentication will be done using AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+  # environment variables set in GitHub Actions
 }
 
 resource "aws_ecr_repository" "main" {
