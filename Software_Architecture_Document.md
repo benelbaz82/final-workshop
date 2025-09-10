@@ -227,6 +227,25 @@ The Status-Page application serves as a centralized platform for:
 - **Configuration Drift**: Infrastructure as Code enforcement
 - **Scalability Limitations**: Auto-scaling policies and capacity planning
 
+## 12. Project costs
+| Product                                              | Monthly Cost | Cost Sep 11-18 |
+| ---------------------------------------------------- | ------------ | -------------- |
+| EKS control plane                                    | 72$          | 19.2$          |
+| EC2 worker nodes (3 x t3.large)                      | 179.71$      | 47.92$         |
+| NAT Gateways (3 x)                                   | 97.2$        | 25.92$         |
+| ALB (base hourly only)                               | 16.2$        | 4.32$          |
+| RDS PostgreSQL Multi-AZ (db.t3.medium x2)            | 103.68$      | 27.65$         |
+| RDS storage (100 GB gp3)                             | 11.5$        | 3.07$          |
+| ElastiCache Redis (2 x cache.t3.small)               | 48.96$       | 13.06$         |
+| OpenSearch (2 x t3.small.search)                     | 51.84$       | 13.82$         |
+| OpenSearch storage (50 GB gp2)                       | 6.75$        | 1.8$           |
+| EBS for worker roots (3 x 20 GB gp3)                 | 4.8$         | 1.28$          |
+| AMP (Prometheus) ingestion (3 nodes, 1k metrics/30s) | 23.33$       | 6.22$          |
+| AMG (1 editor license)                               | 9$           | 2.4$           |
+| Secrets Manager (10 secrets)                         | 4$           | 1.07$          |
+| Route 53 (1 hosted zone)                             | 0.5$         | 0.13$          |
+| Sum:                                                 | 629.47$      | 167.86$        |
+
 ---
 
 ## Appendices
