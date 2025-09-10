@@ -12,7 +12,7 @@ variable "owner" {
 
 # AWS Provider configuration
 provider "aws" {
-  region = env("MY_AWS_REGION")
+  region = env("AWS_REGION")
 
   # Authentication will be done using AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
   # environment variables set in GitHub Actions
