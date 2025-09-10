@@ -22,7 +22,7 @@
         environment: production
         steps:
           - name: Checkout code
-            uses: actions/checkout@v4 # Action to checkout your repository code
+            uses: actions/checkout@v4
 
           - name: Setup Terraform
             uses: hashicorp/setup-terraform@v3 # Action to set up Terraform CLI
