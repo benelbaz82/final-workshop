@@ -1,7 +1,7 @@
 variable "project_name" {
   description = "Name of the project"
   type        = string
-  default     = "final-workshop"
+  default     = "benami"
 }
 
 variable "owner" {
@@ -38,3 +38,4 @@ resource "aws_ecr_repository" "main" {
     owner       = var.owner
   }
 }
+
