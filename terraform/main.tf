@@ -1,9 +1,3 @@
-variable "aws_region" {
-  description = "AWS Region"
-  type        = string
-  default     = "us-east-1"
-}
-
 variable "project_name" {
   description = "Name of the project"
   type        = string
@@ -18,7 +12,7 @@ variable "owner" {
 
 # AWS Provider configuration
 provider "aws" {
-  region = var.aws_region
+  region = env("MY_AWS_REGION")
 
   # Authentication will be done using AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
   # environment variables set in GitHub Actions
