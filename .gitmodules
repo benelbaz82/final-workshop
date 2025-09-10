@@ -1,0 +1,3 @@
+[submodule "status-page-docker-architecture/status-page"]
+	path = status-page-docker-architecture/status-page
+	url = https://github.com/Status-Page/Status-Page.git
