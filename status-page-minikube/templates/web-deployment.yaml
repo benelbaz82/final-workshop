@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+      - name: web
+        image: 992382545251.dkr.ecr.us-east-1.amazonaws.com/benami:status-page-whitenoise
+        command: ["gunicorn", "--bind", "0.0.0.0:8001", "--config", "/app/contrib/gunicorn.py", "--pythonpath", "/app/statuspage", "statuspage.wsgi"]
+        ports:
+        - containerPort: 8001
+        env:
+        - name: POSTGRES_PASSWORD
+          value: "password123"
+        - name: SERVICE_NAME
+          value: "web"
+        - name: STATUS_PAGE_CONFIGURATION
+          value: "statuspage.configuration"
+        volumeMounts:
+        - name: config
+          mountPath: /app/statuspage/configuration.py
+          subPath: configuration.py
+      volumes:
+      - name: config
+        configMap:
+          name: status-page-config
