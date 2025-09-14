@@ -19,7 +19,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: benami
+  ECR_REPOSITORY: status-page
 
 permissions:
   contents: read
