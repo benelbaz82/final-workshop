@@ -1,0 +1,16 @@
+# Additional volumes on the output Deployment definition.
+volumes:
+- name: config
+  configMap:
+    name: status-page-config
+
+# Additional volumeMounts on the output Deployment definition.
+volumeMounts:
+- name: config
+  mountPath: /app/statuspage/statuspage/configuration.py
+  subPath: configuration.py
+
+# Additional env vars
+env:
+- name: STATUS_PAGE_CONFIGURATION
+  value: "statuspage.configuration"

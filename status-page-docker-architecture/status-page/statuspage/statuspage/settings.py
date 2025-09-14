@@ -209,6 +209,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -280,12 +281,12 @@ X_FRAME_OPTIONS = 'SAMEORIGIN'
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
-STATIC_ROOT = BASE_DIR + '/static'
+STATIC_ROOT = '/app/static'
 STATIC_URL = f'/{BASE_PATH}static/'
 STATICFILES_DIRS = (
-    os.path.join(BASE_DIR, 'project-static', 'dist'),
-    os.path.join(BASE_DIR, 'project-static', 'img'),
-    ('docs', os.path.join(BASE_DIR, 'project-static', 'docs')),  # Prefix with /docs
+    os.path.join(BASE_DIR, 'statuspage', 'project-static', 'dist'),
+    os.path.join(BASE_DIR, 'statuspage', 'project-static', 'img'),
+    ('docs', os.path.join(BASE_DIR, 'statuspage', 'project-static', 'docs')),  # Prefix with /docs
 )
 
 # Media

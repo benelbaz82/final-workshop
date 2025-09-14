@@ -88,20 +88,24 @@ autoscaling:
   # targetMemoryUtilizationPercentage: 80
 
 # Additional volumes on the output Deployment definition.
-volumes: []
-# - name: foo
-#   secret:
-#     secretName: mysecret
-#     optional: false
+volumes:
+- name: config
+  configMap:
+    name: status-page-config
 
 # Additional volumeMounts on the output Deployment definition.
-volumeMounts: []
-# - name: foo
-#   mountPath: "/etc/foo"
-#   readOnly: true
+volumeMounts:
+- name: config
+  mountPath: /app/statuspage/statuspage/configuration.py
+  subPath: configuration.py
 
 nodeSelector: {}
 
 tolerations: []
 
 affinity: {}
+
+# Additional env vars
+env:
+- name: STATUS_PAGE_CONFIGURATION
+  value: "statuspage.configuration"
