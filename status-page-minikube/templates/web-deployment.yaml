@@ -16,8 +16,21 @@ spec:
     spec:
       containers:
       - name: web
-        image: 992382545251.dkr.ecr.us-east-1.amazonaws.com/benami:status-page-whitenoise
-        command: ["gunicorn", "--bind", "0.0.0.0:8001", "--config", "/app/contrib/gunicorn.py", "--pythonpath", "/app/statuspage", "statuspage.wsgi"]
+        image: 992382545251.dkr.ecr.us-east-1.amazonaws.com/benami:status-page
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            # Create gunicorn.py file in the statuspage directory
+            cat > /app/statuspage/gunicorn.py << 'EOF'
+            bind = '0.0.0.0:8001'
+            workers = 5
+            threads = 3
+            timeout = 120
+            max_requests = 5000
+            max_requests_jitter = 500
+            EOF
+            # Run the entrypoint
+            /entrypoint.sh
         ports:
         - containerPort: 8001
         env:
@@ -25,11 +38,9 @@ spec:
           value: "password123"
         - name: SERVICE_NAME
           value: "web"
-        - name: STATUS_PAGE_CONFIGURATION
-          value: "statuspage.configuration"
         volumeMounts:
         - name: config
-          mountPath: /app/statuspage/configuration.py
+          mountPath: /app/statuspage/statuspage/configuration.py
           subPath: configuration.py
       volumes:
       - name: config

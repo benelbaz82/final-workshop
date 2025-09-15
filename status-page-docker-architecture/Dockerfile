@@ -24,7 +24,6 @@ RUN pip install rq-scheduler --force-reinstall
 RUN pip install -r requirements.txt
 
 # Copy the application code
-# Modified for scheduler fix
 COPY ./status-page/ .
 
 # Make upgrade script executable
@@ -34,6 +33,19 @@ RUN chmod +x upgrade.sh
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 8000
+# Set default environment variables (can be overridden)
+ENV DEBUG=False
+ENV DATABASE_NAME=statuspage
+ENV DATABASE_USER=statuspage
+ENV DATABASE_PASSWORD=statuspage123
+ENV DATABASE_HOST=localhost
+ENV DATABASE_PORT=5432
+ENV REDIS_HOST=localhost
+ENV REDIS_PORT=6379
+ENV SECRET_KEY=change-this-in-production
+ENV ALLOWED_HOSTS=localhost,127.0.0.1
+ENV SITE_URL=http://localhost
+
+EXPOSE 8001
 
 ENTRYPOINT ["/entrypoint.sh"]

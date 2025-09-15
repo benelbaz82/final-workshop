@@ -1,0 +1,46 @@
+/* Fix for dropdown visual glitching */
+
+/* Remove or reduce transitions that cause visual flashing */
+.ss-main .ss-single-selected {
+    transition: none !important;
+}
+
+.ss-main .ss-single-selected .ss-arrow span {
+    transition: none !important;
+}
+
+.ss-content {
+    transition: none !important;
+}
+
+/* Ensure clean state transitions */
+.ss-content.ss-open {
+    display: block !important;
+    opacity: 1 !important;
+    transform: scaleY(1) !important;
+}
+
+.ss-content:not(.ss-open) {
+    display: none !important;
+    opacity: 0 !important;
+    transform: scaleY(0) !important;
+}
+
+/* Prevent flashing states */
+.ss-main .ss-multi-selected .ss-add .ss-plus {
+    transition: none !important;
+}
+
+/* Ensure immediate state changes for better UX */
+.ss-main .ss-single-selected.ss-open-above,
+.ss-main .ss-single-selected.ss-open-below,
+.ss-main .ss-multi-selected.ss-open-above,
+.ss-main .ss-multi-selected.ss-open-below {
+    transition: none !important;
+}
+
+/* Fix for any lingering animation issues */
+.ss-main * {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+}

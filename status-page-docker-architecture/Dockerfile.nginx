@@ -3,7 +3,7 @@
 # First stage: Build the app and collect static files
 FROM python:3.10-slim AS builder
 
-# Install system dependencies
+# Install system dependencies including Node.js
 RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
@@ -16,6 +16,9 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     redis-tools \
     sed \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -40,7 +43,15 @@ RUN sed -i "s/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = ['localhost']/g" /app/statusp
 RUN sed -i 's|SITE_URL = ""|SITE_URL = "http://localhost"|g' /app/statuspage/statuspage/configuration.py
 RUN sed -i "s/SECRET_KEY = ''/SECRET_KEY = 'dummy_key'/g" /app/statuspage/statuspage/configuration.py
 
+# Build the frontend assets first
+WORKDIR /app/statuspage/project-static
+RUN npm install -g yarn
+RUN yarn install
+RUN yarn bundle:styles
+RUN yarn bundle:scripts
+
 # Collect static files
+WORKDIR /app
 RUN ls -la /app/statuspage/ || true
 RUN python3 /app/statuspage/manage.py collectstatic --noinput
 
@@ -49,6 +60,15 @@ FROM nginx:latest
 
 # Copy collected static files from builder
 COPY --from=builder /app/static /app/static
+
+# Copy the built project-static files (CSS/JS)
+COPY --from=builder /app/statuspage/project-static/dist /app/static/
+
+# Remove unwanted JS files created by CSS bundler and fix-dropdown.js
+RUN rm -f /app/static/statuspage-tailwind.js /app/static/statuspage-ss-select-styles.js /app/static/fix-dropdown.js
+
+# Copy dropdown fix CSS and rename it to replace the removed CSS file
+COPY ./dropdown-fix.css /app/static/statuspage-ss-select-styles.css
 
 # Copy nginx config
 COPY ./nginx.conf /etc/nginx/conf.d/default.conf
