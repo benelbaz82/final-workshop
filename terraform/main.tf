@@ -45,6 +45,11 @@ provider "aws" {
   }
 }
 
+########################
+# Data Sources
+########################
+data "aws_caller_identity" "current" {}
+
 locals {
   az_map = { for idx, az in var.azs : tostring(idx) => az }
 }
