@@ -573,7 +573,7 @@ resource "aws_opensearch_domain" "main" {
   }
 
   vpc_options {
-    subnet_ids         = [values(aws_subnet.private)[*].id[0]]
+    subnet_ids         = [values(aws_subnet.private)[0].id]
     security_group_ids = [aws_security_group.rds.id]  # Reuse RDS security group for simplicity
   }
 
