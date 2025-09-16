@@ -681,3 +681,4 @@ output "grafana_workspace_endpoint" {
 output "opensearch_domain_endpoint" {
   value = var.enable_monitoring ? aws_opensearch_domain.main[0].endpoint : null
 }
+
