@@ -42,6 +42,31 @@ variable "azs" {
   default     = ["us-east-1a", "us-east-1b", "us-east-1c"]
 }
 
+variable "domain_name" {
+  description = "Domain name for Route 53"
+  type        = string
+  default     = "example.com"  # Replace with your actual domain
+}
+
+variable "db_username" {
+  description = "Database username"
+  type        = string
+  default     = "admin"
+}
+
+variable "db_password" {
+  description = "Database password"
+  type        = string
+  sensitive   = true
+  default     = "your_secure_password_here"  # Use Secrets Manager in production
+}
+
+variable "eks_version" {
+  description = "EKS cluster version"
+  type        = string
+  default     = "1.28"
+}
+
 ########################
 # Provider
 ########################
@@ -63,6 +88,54 @@ data "aws_caller_identity" "current" {}
 
 locals {
   az_map = { for idx, az in var.azs : tostring(idx) => az }
+}
+
+########################
+# IAM Roles for EKS
+########################
+resource "aws_iam_role" "eks_cluster" {
+  name = "${var.project_name}-eks-cluster-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "eks.amazonaws.com"
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+  role       = aws_iam_role.eks_cluster.name
+}
+
+resource "aws_iam_role" "eks_node_group" {
+  name = "${var.project_name}-eks-node-group-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "eks_node_group_policies" {
+  for_each = toset([
+    "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
+    "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  ])
+  policy_arn = each.value
+  role       = aws_iam_role.eks_node_group.name
 }
 
 ########################
@@ -170,6 +243,54 @@ resource "aws_route_table_association" "private_assoc" {
 }
 
 ########################
+# EKS Cluster
+########################
+resource "aws_eks_cluster" "main" {
+  name     = "${var.project_name}-eks"
+  role_arn = aws_iam_role.eks_cluster.arn
+  version  = var.eks_version
+
+  vpc_config {
+    subnet_ids = concat(values(aws_subnet.public)[*].id, values(aws_subnet.private)[*].id)
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_cluster_policy
+  ]
+
+  tags = {
+    Name = "${var.project_name}-eks"
+  }
+}
+
+########################
+# EKS Node Group
+########################
+resource "aws_eks_node_group" "main" {
+  cluster_name    = aws_eks_cluster.main.name
+  node_group_name = "${var.project_name}-node-group"
+  node_role_arn   = aws_iam_role.eks_node_group.arn
+  subnet_ids      = values(aws_subnet.private)[*].id  # Private subnets for security
+
+  scaling_config {
+    desired_size = 3
+    max_size     = 5
+    min_size     = 1
+  }
+
+  instance_types = ["t3.large"]  # As per cost table
+  capacity_type  = "ON_DEMAND"
+
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_node_group_policies
+  ]
+
+  tags = {
+    Name = "${var.project_name}-node-group"
+  }
+}
+
+########################
 # ECR
 ########################
 resource "aws_ecr_repository" "main" {
@@ -178,6 +299,113 @@ resource "aws_ecr_repository" "main" {
 
   image_scanning_configuration {
     scan_on_push = true
+  }
+}
+
+########################
+# Security Groups
+########################
+resource "aws_security_group" "rds" {
+  name   = "${var.project_name}-rds-sg"
+  vpc_id = aws_vpc.this.id
+
+  ingress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]  # Allow from VPC; restrict further if needed
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project_name}-rds-sg"
+  }
+}
+
+resource "aws_security_group" "redis" {
+  name   = "${var.project_name}-redis-sg"
+  vpc_id = aws_vpc.this.id
+
+  ingress {
+    from_port   = 6379
+    to_port     = 6379
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]  # Allow from VPC; restrict further if needed
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project_name}-redis-sg"
+  }
+}
+
+########################
+# RDS PostgreSQL (Multi-AZ)
+########################
+resource "aws_db_subnet_group" "main" {
+  name       = "${var.project_name}-db-subnet-group"
+  subnet_ids = values(aws_subnet.private)[*].id
+
+  tags = {
+    Name = "${var.project_name}-db-subnet-group"
+  }
+}
+
+resource "aws_db_instance" "postgres" {
+  identifier             = "${var.project_name}-postgres"
+  engine                 = "postgres"
+  engine_version         = "13"  # As per SAD
+  instance_class         = "db.t3.medium"
+  allocated_storage      = 100  # As per cost table
+  storage_type           = "gp3"
+  multi_az               = true  # Multi-AZ for high availability
+  db_name                = "statuspage"  # Example; adjust as needed
+  username               = var.db_username
+  password               = var.db_password
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  vpc_security_group_ids = [aws_security_group.rds.id]
+  skip_final_snapshot    = true  # For dev; set to false in prod
+
+  tags = {
+    Name = "${var.project_name}-postgres"
+  }
+}
+
+########################
+# ElastiCache Redis
+########################
+resource "aws_elasticache_subnet_group" "main" {
+  name       = "${var.project_name}-redis-subnet-group"
+  subnet_ids = values(aws_subnet.private)[*].id
+
+  tags = {
+    Name = "${var.project_name}-redis-subnet-group"
+  }
+}
+
+resource "aws_elasticache_cluster" "redis" {
+  cluster_id           = "${var.project_name}-redis"
+  engine               = "redis"
+  node_type            = "cache.t3.small"
+  num_cache_nodes      = 2  # As per cost table
+  parameter_group_name = "default.redis7"
+  subnet_group_name    = aws_elasticache_subnet_group.main.name
+  security_group_ids   = [aws_security_group.redis.id]
+
+  tags = {
+    Name = "${var.project_name}-redis"
   }
 }
 
@@ -241,6 +469,131 @@ resource "aws_cloudfront_distribution" "main" {
 }
 
 ########################
+# Secrets Manager
+########################
+resource "aws_secretsmanager_secret" "db_credentials" {
+  name = "${var.project_name}-db-credentials"
+  description = "Database credentials for Status-Page application"
+}
+
+resource "aws_secretsmanager_secret_version" "db_credentials" {
+  secret_id = aws_secretsmanager_secret.db_credentials.id
+  secret_string = jsonencode({
+    username = var.db_username
+    password = var.db_password
+    host     = aws_db_instance.postgres.endpoint
+    port     = 5432
+    dbname   = aws_db_instance.postgres.db_name
+  })
+}
+
+########################
+# Route 53
+########################
+resource "aws_route53_zone" "main" {
+  name = var.domain_name
+  tags = {
+    Name = "${var.project_name}-hosted-zone"
+  }
+}
+
+resource "aws_route53_record" "cloudfront" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "status.${var.domain_name}"
+  type    = "CNAME"
+  ttl     = 300
+  records = [aws_cloudfront_distribution.main.domain_name]
+}
+
+########################
+# Amazon Managed Prometheus
+########################
+resource "aws_prometheus_workspace" "main" {
+  alias = "${var.project_name}-prometheus"
+  tags = {
+    Name = "${var.project_name}-prometheus"
+  }
+}
+
+########################
+# Amazon Managed Grafana
+########################
+resource "aws_grafana_workspace" "main" {
+  name        = "${var.project_name}-grafana"
+  description = "Managed Grafana workspace for Status-Page monitoring"
+  account_access_type      = "CURRENT_ACCOUNT"
+  authentication_providers = ["AWS_SSO"]
+  permission_type          = "SERVICE_MANAGED"
+  role_arn                 = aws_iam_role.grafana.arn
+
+  tags = {
+    Name = "${var.project_name}-grafana"
+  }
+}
+
+resource "aws_iam_role" "grafana" {
+  name = "${var.project_name}-grafana-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "grafana.amazonaws.com"
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "grafana" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonGrafanaServiceRole"
+  role       = aws_iam_role.grafana.name
+}
+
+########################
+# OpenSearch
+########################
+resource "aws_opensearch_domain" "main" {
+  domain_name    = "${var.project_name}-opensearch"
+  engine_version = "OpenSearch_2.11"
+
+  cluster_config {
+    instance_type          = "t3.small.search"
+    instance_count         = 1
+    zone_awareness_enabled = false
+  }
+
+  ebs_options {
+    ebs_enabled = true
+    volume_size = 10
+    volume_type = "gp3"
+  }
+
+  vpc_options {
+    subnet_ids         = [values(aws_subnet.private)[0]]
+    security_group_ids = [aws_security_group.rds.id]  # Reuse RDS security group for simplicity
+  }
+
+  encrypt_at_rest {
+    enabled = true
+  }
+
+  node_to_node_encryption {
+    enabled = true
+  }
+
+  domain_endpoint_options {
+    enforce_https       = true
+    tls_security_policy = "Policy-Min-TLS-1-2-2019-07"
+  }
+
+  tags = {
+    Name = "${var.project_name}-opensearch"
+  }
+}
+
+########################
 # Outputs
 ########################
 output "caller_identity" {
@@ -277,4 +630,48 @@ output "s3_bucket_name" {
 
 output "cloudfront_domain_name" {
   value = aws_cloudfront_distribution.main.domain_name
+}
+
+output "eks_cluster_name" {
+  value = aws_eks_cluster.main.name
+}
+
+output "eks_cluster_endpoint" {
+  value = aws_eks_cluster.main.endpoint
+}
+
+output "node_group_name" {
+  value = aws_eks_node_group.main.node_group_name
+}
+
+output "rds_endpoint" {
+  value = aws_db_instance.postgres.endpoint
+}
+
+output "redis_endpoint" {
+  value = aws_elasticache_cluster.redis.cache_nodes[0].address
+}
+
+output "secrets_manager_arn" {
+  value = aws_secretsmanager_secret.db_credentials.arn
+}
+
+output "route53_zone_id" {
+  value = aws_route53_zone.main.zone_id
+}
+
+output "route53_nameservers" {
+  value = aws_route53_zone.main.name_servers
+}
+
+output "prometheus_workspace_arn" {
+  value = aws_prometheus_workspace.main.arn
+}
+
+output "grafana_workspace_endpoint" {
+  value = aws_grafana_workspace.main.endpoint
+}
+
+output "opensearch_domain_endpoint" {
+  value = aws_opensearch_domain.main.endpoint
 }
