@@ -395,14 +395,16 @@ resource "aws_elasticache_subnet_group" "main" {
   }
 }
 
-resource "aws_elasticache_cluster" "redis" {
-  cluster_id           = "${var.project_name}-redis"
-  engine               = "redis"
-  node_type            = "cache.t3.small"
-  num_cache_nodes      = 2  # As per cost table
-  parameter_group_name = "default.redis7"
-  subnet_group_name    = aws_elasticache_subnet_group.main.name
-  security_group_ids   = [aws_security_group.redis.id]
+resource "aws_elasticache_replication_group" "redis" {
+  replication_group_id       = "${var.project_name}-redis"
+  description                = "Redis replication group for Status-Page"
+  node_type                  = "cache.t3.small"
+  num_cache_clusters         = 2  # As per cost table
+  parameter_group_name       = "default.redis7"
+  subnet_group_name          = aws_elasticache_subnet_group.main.name
+  security_group_ids         = [aws_security_group.redis.id]
+  automatic_failover_enabled = true
+  multi_az_enabled          = true
 
   tags = {
     Name = "${var.project_name}-redis"
@@ -571,7 +573,7 @@ resource "aws_opensearch_domain" "main" {
   }
 
   vpc_options {
-    subnet_ids         = [values(aws_subnet.private)[0]]
+    subnet_ids         = [values(aws_subnet.private)[*].id[0]]
     security_group_ids = [aws_security_group.rds.id]  # Reuse RDS security group for simplicity
   }
 
@@ -649,7 +651,7 @@ output "rds_endpoint" {
 }
 
 output "redis_endpoint" {
-  value = aws_elasticache_cluster.redis.cache_nodes[0].address
+  value = aws_elasticache_replication_group.redis.primary_endpoint_address
 }
 
 output "secrets_manager_arn" {
