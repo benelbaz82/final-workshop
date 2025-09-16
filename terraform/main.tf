@@ -139,13 +139,6 @@ resource "aws_iam_role_policy_attachment" "eks_node_group_policies" {
 }
 
 ########################
-# Random suffix (for unique names)
-########################
-resource "random_id" "suffix" {
-  byte_length = 3
-}
-
-########################
 # VPC
 ########################
 resource "aws_vpc" "this" {
@@ -294,7 +287,7 @@ resource "aws_eks_node_group" "main" {
 # ECR
 ########################
 resource "aws_ecr_repository" "main" {
-  name                 = "${var.project_name}-${random_id.suffix.hex}"
+  name                 = "${var.project_name}"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -415,7 +408,7 @@ resource "aws_elasticache_replication_group" "redis" {
 # S3 + CloudFront
 ########################
 resource "aws_s3_bucket" "main" {
-  bucket        = "${var.project_name}-${random_id.suffix.hex}-bucket"
+  bucket        = "${var.project_name}-bucket"
   force_destroy = true
 }
 
@@ -428,7 +421,7 @@ resource "aws_s3_bucket_public_access_block" "main" {
 }
 
 resource "aws_cloudfront_origin_access_control" "main" {
-  name                              = "${var.project_name}-${random_id.suffix.hex}-oac"
+  name                              = "${var.project_name}-oac"
   description                       = "OAC for CloudFront to access S3"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
