@@ -45,7 +45,7 @@ variable "azs" {
 variable "domain_name" {
   description = "Domain name for Route 53"
   type        = string
-  default     = "your-domain.com"  # Replace with your actual domain
+  default     = "statuspage-benami.com"  # Replace with your actual domain
 }
 
 variable "db_username" {
