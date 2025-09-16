@@ -45,13 +45,13 @@ variable "azs" {
 variable "domain_name" {
   description = "Domain name for Route 53"
   type        = string
-  default     = "example.com"  # Replace with your actual domain
+  default     = "your-domain.com"  # Replace with your actual domain
 }
 
 variable "db_username" {
   description = "Database username"
   type        = string
-  default     = "admin"
+  default     = "statuspage_user"
 }
 
 variable "db_password" {
@@ -65,6 +65,12 @@ variable "eks_version" {
   description = "EKS cluster version"
   type        = string
   default     = "1.28"
+}
+
+variable "enable_monitoring" {
+  description = "Enable monitoring services (Prometheus, Grafana, OpenSearch)"
+  type        = bool
+  default     = false  # Set to true if you have permissions
 }
 
 ########################
@@ -504,6 +510,7 @@ resource "aws_route53_record" "cloudfront" {
 # Amazon Managed Prometheus
 ########################
 resource "aws_prometheus_workspace" "main" {
+  count = var.enable_monitoring ? 1 : 0
   alias = "${var.project_name}-prometheus"
   tags = {
     Name = "${var.project_name}-prometheus"
@@ -514,12 +521,13 @@ resource "aws_prometheus_workspace" "main" {
 # Amazon Managed Grafana
 ########################
 resource "aws_grafana_workspace" "main" {
+  count = var.enable_monitoring ? 1 : 0
   name        = "${var.project_name}-grafana"
   description = "Managed Grafana workspace for Status-Page monitoring"
   account_access_type      = "CURRENT_ACCOUNT"
   authentication_providers = ["AWS_SSO"]
   permission_type          = "SERVICE_MANAGED"
-  role_arn                 = aws_iam_role.grafana.arn
+  role_arn                 = aws_iam_role.grafana[0].arn
 
   tags = {
     Name = "${var.project_name}-grafana"
@@ -527,6 +535,7 @@ resource "aws_grafana_workspace" "main" {
 }
 
 resource "aws_iam_role" "grafana" {
+  count = var.enable_monitoring ? 1 : 0
   name = "${var.project_name}-grafana-role"
 
   assume_role_policy = jsonencode({
@@ -542,14 +551,16 @@ resource "aws_iam_role" "grafana" {
 }
 
 resource "aws_iam_role_policy_attachment" "grafana" {
+  count = var.enable_monitoring ? 1 : 0
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonGrafanaServiceRole"
-  role       = aws_iam_role.grafana.name
+  role       = aws_iam_role.grafana[0].name
 }
 
 ########################
 # OpenSearch
 ########################
 resource "aws_opensearch_domain" "main" {
+  count = var.enable_monitoring ? 1 : 0
   domain_name    = "${var.project_name}-opensearch"
   engine_version = "OpenSearch_2.11"
 
@@ -660,13 +671,13 @@ output "route53_nameservers" {
 }
 
 output "prometheus_workspace_arn" {
-  value = aws_prometheus_workspace.main.arn
+  value = var.enable_monitoring ? aws_prometheus_workspace.main[0].arn : null
 }
 
 output "grafana_workspace_endpoint" {
-  value = aws_grafana_workspace.main.endpoint
+  value = var.enable_monitoring ? aws_grafana_workspace.main[0].endpoint : null
 }
 
 output "opensearch_domain_endpoint" {
-  value = aws_opensearch_domain.main.endpoint
+  value = var.enable_monitoring ? aws_opensearch_domain.main[0].endpoint : null
 }
