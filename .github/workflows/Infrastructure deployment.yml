@@ -42,8 +42,13 @@
             run: terraform init
             working-directory: ./terraform # Specify the directory containing your Terraform files
 
-          - name: Terraform Format Check
+          - name: Terraform Format
             id: fmt
+            run: terraform fmt
+            working-directory: ./terraform
+
+          - name: Terraform Format Check
+            id: fmt-check
             run: terraform fmt -check
             working-directory: ./terraform
 
