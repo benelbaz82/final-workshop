@@ -427,7 +427,7 @@ resource "aws_s3_bucket_public_access_block" "main" {
 }
 
 resource "aws_cloudfront_origin_access_control" "main" {
-  name                              = "${var.project_name}-oac"
+  name                              = "benami-54155d-oac"
   description                       = "OAC for CloudFront to access S3"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
@@ -681,4 +681,3 @@ output "grafana_workspace_endpoint" {
 output "opensearch_domain_endpoint" {
   value = var.enable_monitoring ? aws_opensearch_domain.main[0].endpoint : null
 }
-
