@@ -16,6 +16,16 @@ name: Build and Push to ECR
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - 'terraform/**'
+      - 'infrastructure/**'
+      - 'README.md'
+      - 'Software_Architecture_Document.md'
+      - 'Final Workshop Install Guide.pdf'
+      - 'Final Workshop.pdf'
+      - '*.png'
+      - '*.jpg'
+      - '*.jpeg'
 
 env:
   AWS_REGION: us-east-1
@@ -63,3 +73,5 @@ jobs:
         docker build -f ./status-page-docker-architecture/Dockerfile.nginx -t $ECR_REGISTRY/$ECR_REPOSITORY:nginx-$IMAGE_TAG ./status-page-docker-architecture
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:nginx-$IMAGE_TAG
         echo "nginx_image=$ECR_REGISTRY/$ECR_REPOSITORY:nginx-$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+
