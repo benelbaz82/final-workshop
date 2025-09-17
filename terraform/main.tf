@@ -64,7 +64,7 @@ variable "db_password" {
 variable "eks_version" {
   description = "EKS cluster version"
   type        = string
-  default     = "1.28"
+  default     = "1.33"
 }
 
 variable "enable_monitoring" {
