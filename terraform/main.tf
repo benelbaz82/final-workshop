@@ -376,6 +376,7 @@ resource "aws_db_instance" "postgres" {
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
   skip_final_snapshot    = true  # For dev; set to false in prod
+  delete_automated_backups = true
 
   tags = {
     Name = "${var.project_name}-postgres"
@@ -475,6 +476,7 @@ resource "aws_cloudfront_distribution" "main" {
 resource "aws_secretsmanager_secret" "db_credentials" {
   name = "${var.project_name}-db-credentials"
   description = "Database credentials for Status-Page application"
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "db_credentials" {
