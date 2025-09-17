@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      imagePullSecrets:
+      - name: ecr-secret
+      containers:
+      - name: nginx
+        image: nginx-with-static:v6
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 80

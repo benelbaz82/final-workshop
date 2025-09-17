@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+      - name: web
+        image: 992382545251.dkr.ecr.us-east-1.amazonaws.com/benami:status-page
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            # Create gunicorn.py file in the statuspage directory
+            cat > /app/statuspage/gunicorn.py << 'EOF'
+            bind = '0.0.0.0:8001'
+            workers = 5
+            threads = 3
+            timeout = 120
+            max_requests = 5000
+            max_requests_jitter = 500
+            EOF
+            # Run the entrypoint
+            /entrypoint.sh
+        ports:
+        - containerPort: 8001
+        env:
+        - name: POSTGRES_PASSWORD
+          value: "password123"
+        - name: SERVICE_NAME
+          value: "web"
+        volumeMounts:
+        - name: config
+          mountPath: /app/statuspage/statuspage/configuration.py
+          subPath: configuration.py
+      volumes:
+      - name: config
+        configMap:
+          name: status-page-config

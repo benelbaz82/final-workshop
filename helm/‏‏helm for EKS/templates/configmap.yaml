@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: status-page-config
+data:
+  configuration.py: |
+    ALLOWED_HOSTS = ['web', 'localhost', '127.0.0.1', '192.168.49.2', '13.217.238.178', '*']
+    DATABASE = {
+        'NAME': 'statuspage',
+        'USER': 'statuspage',
+        'PASSWORD': 'password123',
+        'HOST': 'postgres',
+        'PORT': '',
+        'CONN_MAX_AGE': 300,
+    }
+    REDIS = {
+        'tasks': {
+            'HOST': 'redis',
+            'PORT': 6379,
+            'PASSWORD': '',
+            'DATABASE': 0,
+            'SSL': False,
+        },
+        'caching': {
+            'HOST': 'redis',
+            'PORT': 6379,
+            'PASSWORD': '',
+            'DATABASE': 1,
+            'SSL': False,
+        }
+    }
+    SECRET_KEY = 'PB7EvHFvCqvmUKUKr0DRj43b3a5UpDHfaoVh1SrTySUGlcPAPCq52aA3VcLcTBZKZzw'
+    SITE_URL = 'http://13.217.238.178:8080'
+    
+    # Additional settings for proper operation
+    DEBUG = False
+    USE_TZ = True
+    CSRF_COOKIE_SECURE = False
+    CSRF_COOKIE_HTTPONLY = False
+    CSRF_TRUSTED_ORIGINS = ['http://localhost:8080', 'http://127.0.0.1:8080', 'http://192.168.49.2:30080', 'http://192.168.49.2', 'http://13.217.238.178:8080', 'http://13.217.238.178']
+    CSRF_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = False
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    
+    # Static files settings
+    STATIC_URL = '/static/'
+    STATIC_ROOT = '/app/static'
+    
+    # Additional settings for proper rendering
+    USE_I18N = True
+    USE_L10N = True
+    LANGUAGE_CODE = 'en-us'
+    TIME_ZONE = 'UTC'
