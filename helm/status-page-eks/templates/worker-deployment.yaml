@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels:
+    app: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      serviceAccountName: status-page-sa
+      containers:
+      - name: worker
+        image: "992382545251.dkr.ecr.us-east-1.amazonaws.com/benami:status-page"
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: status-page-secrets
+              key: POSTGRES_PASSWORD
+        - name: SERVICE_NAME
+          value: "worker"
+        - name: STATUS_PAGE_CONFIGURATION
+          value: "statuspage.configuration"
+        resources:
+          limits:
+            cpu: 300m
+            memory: 512Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        volumeMounts:
+        - name: config
+          mountPath: /app/statuspage/configuration.py
+          subPath: configuration.py
+      volumes:
+      - name: config
+        configMap:
+          name: status-page-config

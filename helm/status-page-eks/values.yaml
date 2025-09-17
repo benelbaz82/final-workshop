@@ -1,0 +1,99 @@
+# Default values for status-page-eks chart
+replicaCount: 1
+
+image:
+  repository: 992382545251.dkr.ecr.us-east-1.amazonaws.com/benami
+  tag: "status-page"
+  pullPolicy: IfNotPresent
+
+# AWS Services Configuration
+aws:
+  region: us-east-1
+  rds:
+    endpoint: "benami-postgres.cx248m4we6k7.us-east-1.rds.amazonaws.com"
+    database: statuspage
+    username: statuspage_user
+    password: ""  # Will be retrieved from AWS Secrets Manager
+    port: 5432
+  redis:
+    endpoint: "benami-redis.7fftml.ng.0001.use1.cache.amazonaws.com"
+    port: 6379
+  secretsManager:
+    secretArn: "arn:aws:secretsmanager:us-east-1:992382545251:secret:benami-db-credentials-NRQWfb"
+  domain: "status.statuspage-benami.com"
+
+# Application Configuration
+config:
+  debug: false
+  secretKey: "PB7EvHFvCqvmUKUKr0DRj43b3a5UpDHfaoVh1SrTySUGlcPAPCq52aA3VcLcTBZKZzw"
+  allowedHosts:
+    - "*"
+    - "status.statuspage-benami.com"
+  csrfTrustedOrigins:
+    - "https://status.statuspage-benami.com"
+  siteUrl: "https://status.statuspage-benami.com"
+
+# AWS Load Balancer Controller
+awsLoadBalancerController:
+  enabled: true
+  clusterName: benami-eks
+  serviceAccount:
+    create: true
+    name: aws-load-balancer-controller
+    annotations:
+      eks.amazonaws.com/role-arn: ""  # IAM role ARN for ALB controller
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/certificate-arn: ""  # ACM certificate ARN
+  hosts:
+    - host: status.statuspage-benami.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: status-page-tls
+      hosts:
+        - status.statuspage-benami.com
+
+# Service Account for pods
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: ""  # IAM role ARN for application pods
+
+# Resource limits
+resources:
+  web:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  worker:
+    limits:
+      cpu: 300m
+      memory: 512Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  scheduler:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+# Node selectors and tolerations
+nodeSelector: {}
+tolerations: []
+affinity: {}
