@@ -17,18 +17,18 @@ data:
         'tasks': {
             'HOST': 'benami-redis.7fftml.ng.0001.use1.cache.amazonaws.com',
             'PORT': 6379,
-            'PASSWORD': '',
             'DATABASE': 0,
             'SSL': False,
         },
         'caching': {
             'HOST': 'benami-redis.7fftml.ng.0001.use1.cache.amazonaws.com',
             'PORT': 6379,
-            'PASSWORD': '',
             'DATABASE': 1,
             'SSL': False,
         }
     }
+    # Override RQ Redis configuration to avoid authentication issues with ElastiCache
+    RQ_REDIS_URL = 'redis://benami-redis.7fftml.ng.0001.use1.cache.amazonaws.com:6379/0'
     SECRET_KEY = 'PB7EvHFvCqvmUKUKr0DRj43b3a5UpDHfaoVh1SrTySUGlcPAPCq52aA3VcLcTBZKZzw'
     SITE_URL = 'https://status.statuspage-benami.com'
     DEBUG = False

@@ -33,26 +33,26 @@ config:
     - "https://status.statuspage-benami.com"
   siteUrl: "https://status.statuspage-benami.com"
 
-# AWS Load Balancer Controller
-awsLoadBalancerController:
+# Cert Manager
+certManager:
   enabled: true
+  installCRDs: true
+
+# AWS Load Balancer Controller
+aws-load-balancer-controller:
   clusterName: benami-eks
   serviceAccount:
     create: true
     name: aws-load-balancer-controller
     annotations:
-      eks.amazonaws.com/role-arn: ""  # IAM role ARN for ALB controller
+      eks.amazonaws.com/role-arn: "arn:aws:iam::992382545251:role/AmazonEKSLoadBalancerControllerRole"
 
 # Ingress Configuration
 ingress:
   enabled: true
-  className: alb
+  className: nginx
   annotations:
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
-    alb.ingress.kubernetes.io/ssl-redirect: '443'
-    alb.ingress.kubernetes.io/certificate-arn: ""  # ACM certificate ARN
+    nginx.ingress.kubernetes.io/rewrite-target: /
   hosts:
     - host: status.statuspage-benami.com
       paths:

@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: web
-        image: 992382545251.dkr.ecr.us-east-1.amazonaws.com/benami:status-page
+        image: 992382545251.dkr.ecr.us-east-1.amazonaws.com/status-page:v17
         command: ["/bin/bash", "-c"]
         args:
           - |
@@ -35,9 +35,13 @@ spec:
         - containerPort: 8001
         env:
         - name: POSTGRES_PASSWORD
-          value: "password123"
+          value: "your_secure_password_here"
         - name: SERVICE_NAME
           value: "web"
+        - name: DJANGO_RQ_REDIS_URL
+          value: "redis://benami-redis.7fftml.ng.0001.use1.cache.amazonaws.com:6379"
+        - name: RQ_REDIS_URL
+          value: "redis://benami-redis.7fftml.ng.0001.use1.cache.amazonaws.com:6379"
         volumeMounts:
         - name: config
           mountPath: /app/statuspage/statuspage/configuration.py

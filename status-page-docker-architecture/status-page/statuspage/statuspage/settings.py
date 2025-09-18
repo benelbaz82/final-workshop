@@ -91,7 +91,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': DATABASE.get('NAME'),
         'USER': DATABASE.get('USER'),
-        'PASSWORD': DATABASE.get('PASSWORD'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', DATABASE.get('PASSWORD')),
         'HOST': DATABASE.get('HOST'),
         'PORT': DATABASE.get('PORT'),
         'CONN_MAX_AGE': DATABASE.get('CONN_MAX_AGE'),
@@ -200,11 +200,11 @@ INSTALLED_APPS = [
     'subscribers',
     'django_rq',
     'drf_yasg',
-    'queuing',
     'django_otp',
     'django_otp.plugins.otp_static',
     'django_otp.plugins.otp_totp',
     'otp_yubikey',
+    # 'queuing',  # Disabled for ElastiCache compatibility
 ]
 
 MIDDLEWARE = [
@@ -401,66 +401,73 @@ else:
 RQ_PARAMS.update({
     'DB': TASKS_REDIS_DATABASE,
     'USERNAME': TASKS_REDIS_USERNAME,
-    'PASSWORD': TASKS_REDIS_PASSWORD,
     'DEFAULT_TIMEOUT': RQ_DEFAULT_TIMEOUT,
 })
+
+# Only add password if we're not using ElastiCache (which doesn't support authentication)
+if not TASKS_REDIS_HOST.endswith('.cache.amazonaws.com'):
+    RQ_PARAMS['PASSWORD'] = TASKS_REDIS_PASSWORD
 
 if TASKS_REDIS_CA_CERT_PATH:
     RQ_PARAMS.setdefault('REDIS_CLIENT_KWARGS', {})
     RQ_PARAMS['REDIS_CLIENT_KWARGS']['ssl_ca_certs'] = TASKS_REDIS_CA_CERT_PATH
 
-RQ_QUEUES = {
-    RQ_QUEUE_HIGH: RQ_PARAMS,
-    RQ_QUEUE_DEFAULT: RQ_PARAMS,
-    RQ_QUEUE_LOW: RQ_PARAMS,
-}
+# Only set up RQ queues if we're not using ElastiCache (which doesn't support authentication)
+if not TASKS_REDIS_HOST.endswith('.cache.amazonaws.com'):
+    RQ_QUEUES = {
+        RQ_QUEUE_HIGH: RQ_PARAMS,
+        RQ_QUEUE_DEFAULT: RQ_PARAMS,
+        RQ_QUEUE_LOW: RQ_PARAMS,
+    }
 
-# Add any queues defined in QUEUE_MAPPINGS
-RQ_QUEUES.update({
-    queue: RQ_PARAMS for queue in set(QUEUE_MAPPINGS.values()) if queue not in RQ_QUEUES
-})
-
-
-for plugin_name in PLUGINS:
-
-    # Import plugin module
-    try:
-        plugin = importlib.import_module(plugin_name)
-    except ModuleNotFoundError as e:
-        if getattr(e, 'name') == plugin_name:
-            raise ImproperlyConfigured(
-                "Unable to import plugin {}: Module not found. Check that the plugin module has been installed within the "
-                "correct Python environment.".format(plugin_name)
-            )
-        raise e
-
-    # Determine plugin config and add to INSTALLED_APPS.
-    try:
-        plugin_config = plugin.config
-        INSTALLED_APPS.append("{}.{}".format(plugin_config.__module__, plugin_config.__name__))
-    except AttributeError:
-        raise ImproperlyConfigured(
-            "Plugin {} does not provide a 'config' variable. This should be defined in the plugin's __init__.py file "
-            "and point to the PluginConfig subclass.".format(plugin_name)
-        )
-
-    # Validate user-provided configuration settings and assign defaults
-    if plugin_name not in PLUGINS_CONFIG:
-        PLUGINS_CONFIG[plugin_name] = {}
-    plugin_config.validate(PLUGINS_CONFIG[plugin_name], VERSION)
-
-    # Add middleware
-    plugin_middleware = plugin_config.middleware
-    if plugin_middleware and type(plugin_middleware) in (list, tuple):
-        MIDDLEWARE.extend(plugin_middleware)
-
-    # Create RQ queues dedicated to the plugin
-    # we use the plugin name as a prefix for queue name's defined in the plugin config
-    # ex: mysuperplugin.mysuperqueue1
-    if type(plugin_config.queues) is not list:
-        raise ImproperlyConfigured(
-            "Plugin {} queues must be a list.".format(plugin_name)
-        )
+    # Add any queues defined in QUEUE_MAPPINGS
     RQ_QUEUES.update({
-        f"{plugin_name}.{queue}": RQ_PARAMS for queue in plugin_config.queues
+        queue: RQ_PARAMS for queue in set(QUEUE_MAPPINGS.values()) if queue not in RQ_QUEUES
     })
+
+    for plugin_name in PLUGINS:
+        # Import plugin module
+        try:
+            plugin = importlib.import_module(plugin_name)
+        except ModuleNotFoundError as e:
+            if getattr(e, 'name') == plugin_name:
+                raise ImproperlyConfigured(
+                    "Unable to import plugin {}: Module not found. Check that the plugin module has been installed within the "
+                    "correct Python environment.".format(plugin_name)
+                )
+            raise e
+
+        # Determine plugin config and add to INSTALLED_APPS.
+        try:
+            plugin_config = plugin.config
+            INSTALLED_APPS.append("{}.{}".format(plugin_config.__module__, plugin_config.__name__))
+        except AttributeError:
+            raise ImproperlyConfigured(
+                "Plugin {} does not provide a 'config' variable. This should be defined in the plugin's __init__.py file "
+                "and point to the PluginConfig subclass.".format(plugin_name)
+            )
+
+        # Validate user-provided configuration settings and assign defaults
+        if plugin_name not in PLUGINS_CONFIG:
+            PLUGINS_CONFIG[plugin_name] = {}
+        plugin_config.validate(PLUGINS_CONFIG[plugin_name], VERSION)
+
+        # Add middleware
+        plugin_middleware = plugin_config.middleware
+        if plugin_middleware and type(plugin_middleware) in (list, tuple):
+            MIDDLEWARE.extend(plugin_middleware)
+
+        # Create RQ queues dedicated to the plugin
+        # we use the plugin name as a prefix for queue name's defined in the plugin config
+        # ex: mysuperplugin.mysuperqueue1
+        if type(plugin_config.queues) is not list:
+            raise ImproperlyConfigured(
+                "Plugin {} queues must be a list.".format(plugin_name)
+            )
+        RQ_QUEUES.update({
+            f"{plugin_name}.{queue}": RQ_PARAMS for queue in plugin_config.queues
+        })
+else:
+    # For ElastiCache, don't set up any RQ queues to avoid authentication issues
+    RQ_QUEUES = {}
+    print("Warning: Skipping RQ queue setup for ElastiCache (no authentication support)")
