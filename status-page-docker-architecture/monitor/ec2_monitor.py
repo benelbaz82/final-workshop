@@ -7,7 +7,6 @@ from botocore.exceptions import ClientError
 # Configuration from environment variables
 INSTANCE_ID = os.getenv('INSTANCE_ID')
 AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
-WHATSAPP_URL = os.getenv('WHATSAPP_URL', 'https://new-waha.goblindeals.org/')
 INTERVAL = int(os.getenv('INTERVAL', 60))  # seconds for checking existence
 
 # Status Page API Configuration
@@ -18,6 +17,10 @@ HEADERS = {
     "Authorization": f"Token {API_TOKEN}",
     "Content-Type": "application/json"
 }
+
+# Component Configuration
+COMPONENT_ID = int(os.getenv('COMPONENT_ID', 1))
+COMPONENT_API_URL = os.getenv('COMPONENT_API_URL', 'http://host.docker.internal:8000/api/components/components/')
 
 # AWS credentials should be set via environment variables or IAM roles
 ec2 = boto3.client('ec2', region_name=AWS_REGION)
@@ -49,21 +52,21 @@ def send_metric_point(value):
     except Exception as e:
         print(f"Failed to send metric: {e}")
 
-def send_whatsapp_notification(instance_id):
-    data = {
-        "message": f"EC2 instance {instance_id} has been deleted or stopped",
-        "instance_id": instance_id
-    }
+def update_component_status(status):
+    """Update component status in Status-Page"""
+    url = f"{COMPONENT_API_URL}{COMPONENT_ID}/"
+    data = {"status": status}
+    
     try:
-        response = requests.post(WHATSAPP_URL, json=data, timeout=10)
-        if response.status_code in [200, 201]:
-            print(f"Sent WhatsApp notification for instance: {instance_id}")
+        response = requests.patch(url, json=data, headers=HEADERS, timeout=10)
+        if response.status_code == 200:
+            print(f"Component status updated to: {status}")
+            return response.json()
         else:
-            print(f"Failed to send WhatsApp notification: {response.status_code} - {response.text}")
+            print(f"Failed to update component: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"Failed to send WhatsApp notification: {e}")
-
-if __name__ == "__main__":
+        print(f"Error updating component: {e}")
+    return Noneif __name__ == "__main__":
     if not INSTANCE_ID:
         print("INSTANCE_ID environment variable is required")
         exit(1)
@@ -75,14 +78,16 @@ if __name__ == "__main__":
         if exists:
             # Send metric every second while running
             send_metric_point(1)  # 1 = running
+            update_component_status("operational")  # Update component to operational
             time.sleep(1)
         else:
             # Instance not running
             if last_exists is True:
                 # Status changed from running to not running
                 print(f"Instance {INSTANCE_ID} is no longer running")
-                send_whatsapp_notification(INSTANCE_ID)
+                update_component_status("major_outage")  # Update component to major outage
             # Send metric once when not running
             send_metric_point(0)  # 0 = not running
+            update_component_status("major_outage")  # Ensure component shows outage
             time.sleep(INTERVAL)  # Check less frequently when not running
         last_exists = exists
