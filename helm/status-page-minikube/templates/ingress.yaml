@@ -3,7 +3,7 @@ kind: Ingress
 metadata:
   name: status-page-ingress
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: ""
+    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   rules:
   - http:
@@ -15,3 +15,10 @@ spec:
             name: nginx
             port:
               number: 80
+      - path: /dashboard
+        pathType: Prefix
+        backend:
+          service:
+            name: web
+            port:
+              number: 8080
