@@ -9,9 +9,11 @@ services:
     env_file:
       - ../.env
     restart: unless-stopped
-    networks:
-      - status-page-docker-architecture_default
-
-networks:
-  status-page-docker-architecture_default:
-    external: true
+  ec2-monitor:
+    build: .
+    container_name: ec2-monitor
+    env_file:
+      - ../.env
+    environment:
+      - SCRIPT=ec2_monitor
+    restart: unless-stopped
