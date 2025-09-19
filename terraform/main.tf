@@ -427,6 +427,20 @@ resource "aws_s3_bucket_public_access_block" "main" {
   restrict_public_buckets = true
 }
 
+# Enable CORS on the S3 bucket as a fallback for direct S3 access and
+# to ensure CloudFront can pass through CORS headers when needed.
+resource "aws_s3_bucket_cors_configuration" "main" {
+  bucket = aws_s3_bucket.main.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "HEAD"]
+    allowed_origins = ["*"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
+  }
+}
+
 resource "aws_cloudfront_origin_access_control" "main" {
   name                              = "benami-54155d-oac"
   description                       = "OAC for CloudFront to access S3"
@@ -435,21 +449,71 @@ resource "aws_cloudfront_origin_access_control" "main" {
   signing_protocol                  = "sigv4"
 }
 
+# Add a CloudFront Response Headers Policy to set CORS headers for static assets
+resource "aws_cloudfront_response_headers_policy" "cors_static" {
+  name = "${var.project_name}-static-cors"
+
+  cors_config {
+    access_control_allow_credentials = false
+
+    access_control_allow_headers {
+      items = ["*"]
+    }
+
+    access_control_allow_methods {
+      items = ["GET", "HEAD", "OPTIONS"]
+    }
+
+    # Allow any viewer origin to fetch static assets (no credentials)
+    access_control_allow_origins {
+      items = ["*"]
+    }
+
+    origin_override = true
+  }
+
+  custom_headers_config {
+    items {
+      header   = "Vary"
+      value    = "Origin"
+      override = true
+    }
+  }
+}
+
 resource "aws_cloudfront_distribution" "main" {
   enabled             = true
   default_root_object = "index.html"
 
+  # S3 Origin for static files (served via OAC)
   origin {
     domain_name              = aws_s3_bucket.main.bucket_regional_domain_name
     origin_id                = "s3-origin"
     origin_access_control_id = aws_cloudfront_origin_access_control.main.id
   }
 
-  default_cache_behavior {
-    target_origin_id       = "s3-origin"
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET", "HEAD"]
-    cached_methods         = ["GET", "HEAD"]
+  # Load Balancer Origin for dynamic content
+  origin {
+    domain_name = "a9079129832794afbb11bd466e7bfb49-bcf6dbde1e195b0a.elb.us-east-1.amazonaws.com"
+    origin_id   = "elb-origin"
+    
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
+  # Static files behavior → S3
+  ordered_cache_behavior {
+    path_pattern               = "/static/*"
+    target_origin_id           = "s3-origin"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.cors_static.id
 
     forwarded_values {
       query_string = false
@@ -457,6 +521,31 @@ resource "aws_cloudfront_distribution" "main" {
         forward = "none"
       }
     }
+
+    min_ttl     = 0
+    default_ttl = 86400
+    max_ttl     = 31536000
+  }
+
+  # Default behavior for dynamic content
+  default_cache_behavior {
+    target_origin_id       = "elb-origin"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods         = ["GET", "HEAD"]
+    compress               = true
+
+    forwarded_values {
+      query_string = true
+      headers      = ["Host", "CloudFront-Forwarded-Proto", "CloudFront-Is-Desktop-Viewer", "CloudFront-Is-Mobile-Viewer", "CloudFront-Is-Tablet-Viewer"]
+      cookies {
+        forward = "all"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 0
+    max_ttl     = 0
   }
 
   restrictions {
@@ -466,8 +555,38 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    acm_certificate_arn      = "arn:aws:acm:us-east-1:992382545251:certificate/d9b40b1e-1eeb-4821-90a9-3f61f143e043"
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
+
+  aliases = ["statuspage-benami.com"]
+}
+
+########################
+# S3 Bucket Policy for OAC
+########################
+resource "aws_s3_bucket_policy" "main" {
+  bucket = aws_s3_bucket.main.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudfront.amazonaws.com"
+        }
+        Action   = ["s3:GetObject"]
+        Resource = "${aws_s3_bucket.main.arn}/*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.main.arn
+          }
+        }
+      }
+    ]
+  })
 }
 
 ########################
@@ -500,12 +619,35 @@ resource "aws_route53_zone" "main" {
   }
 }
 
-resource "aws_route53_record" "cloudfront" {
+# Main domain points to CloudFront
+resource "aws_route53_record" "root" {
   zone_id = aws_route53_zone.main.zone_id
-  name    = "status.${var.domain_name}"
+  name    = var.domain_name
+  type    = "A"
+
+  alias {
+    name                   = aws_cloudfront_distribution.main.domain_name
+    zone_id               = aws_cloudfront_distribution.main.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+# Optional: www subdomain
+resource "aws_route53_record" "www" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "www.${var.domain_name}"
   type    = "CNAME"
   ttl     = 300
   records = [aws_cloudfront_distribution.main.domain_name]
+}
+
+# Grafana subdomain pointing to ELB
+resource "aws_route53_record" "grafana" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "grafana.${var.domain_name}"
+  type    = "CNAME"
+  ttl     = 300
+  records = ["a3560ceec672840e187545056b8e01e8-833625799.us-east-1.elb.amazonaws.com"]
 }
 
 ########################
@@ -638,6 +780,10 @@ output "s3_bucket_name" {
 
 output "cloudfront_domain_name" {
   value = aws_cloudfront_distribution.main.domain_name
+}
+
+output "cloudfront_distribution_id" {
+  value = aws_cloudfront_distribution.main.id
 }
 
 output "eks_cluster_name" {

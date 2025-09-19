@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: waha
+  namespace: default
+  labels:
+    app: waha
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: waha
+  template:
+    metadata:
+      labels:
+        app: waha
+    spec:
+      imagePullSecrets:
+      - name: waha-regcred
+      containers:
+      - name: waha
+        # WAHA Plus image as per docs; can switch to devlikeapro/waha:latest
+        image: devlikeapro/waha-plus:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+        env:
+        - name: WAHA_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: waha-config
+              key: WAHA_BASE_URL
+        - name: WHATSAPP_DEFAULT_ENGINE
+          valueFrom:
+            configMapKeyRef:
+              name: waha-config
+              key: WHATSAPP_DEFAULT_ENGINE
+        - name: WAHA_LOG_FORMAT
+          valueFrom:
+            configMapKeyRef:
+              name: waha-config
+              key: WAHA_LOG_FORMAT
+        - name: WAHA_LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: waha-config
+              key: WAHA_LOG_LEVEL
+        - name: WAHA_PRINT_QR
+          valueFrom:
+            configMapKeyRef:
+              name: waha-config
+              key: WAHA_PRINT_QR
+        - name: WAHA_MEDIA_STORAGE
+          valueFrom:
+            configMapKeyRef:
+              name: waha-config
+              key: WAHA_MEDIA_STORAGE
+        - name: WHATSAPP_FILES_LIFETIME
+          valueFrom:
+            configMapKeyRef:
+              name: waha-config
+              key: WHATSAPP_FILES_LIFETIME
+        - name: WHATSAPP_FILES_FOLDER
+          valueFrom:
+            configMapKeyRef:
+              name: waha-config
+              key: WHATSAPP_FILES_FOLDER
+        - name: WAHA_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: waha-secrets
+              key: WAHA_API_KEY
+        - name: WAHA_DASHBOARD_ENABLED
+          value: "True"
+        - name: WAHA_DASHBOARD_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: waha-secrets
+              key: WAHA_DASHBOARD_USERNAME
+        - name: WAHA_DASHBOARD_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: waha-secrets
+              key: WAHA_DASHBOARD_PASSWORD
+        - name: WHATSAPP_SWAGGER_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: waha-config
+              key: WHATSAPP_SWAGGER_ENABLED
+        - name: WHATSAPP_SWAGGER_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: waha-secrets
+              key: WHATSAPP_SWAGGER_USERNAME
+        - name: WHATSAPP_SWAGGER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: waha-secrets
+              key: WHATSAPP_SWAGGER_PASSWORD
+        volumeMounts:
+        - name: sessions
+          mountPath: /app/.sessions
+        - name: media
+          mountPath: /app/.media
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+      volumes:
+      - name: sessions
+        emptyDir: {}
+      - name: media
+        emptyDir: {}
+

@@ -1,0 +1,18 @@
+{
+  "Changes": [
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "statuspage-benami.com",
+        "Type": "NS",
+        "TTL": 172800,
+        "ResourceRecords": [
+          {"Value": "ns-1052.awsdns-03.org."},
+          {"Value": "ns-1607.awsdns-08.co.uk."},
+          {"Value": "ns-42.awsdns-05.com."},
+          {"Value": "ns-560.awsdns-06.net."}
+        ]
+      }
+    }
+  ]
+}

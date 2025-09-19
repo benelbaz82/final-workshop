@@ -5,7 +5,7 @@ metadata:
   labels:
     app: web
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: web
@@ -15,88 +15,87 @@ spec:
         app: web
     spec:
       serviceAccountName: status-page-sa
+      initContainers:
+        - name: fix-elasticache-rq
+          image: 992382545251.dkr.ecr.us-east-1.amazonaws.com/benami:status-page
+          command: ['python3', '-c']
+          args:
+            - |
+              import re
+              print("Fixing ElastiCache RQ_QUEUES issue...")
+              
+              # Read settings.py
+              with open('/app/statuspage/statuspage/settings.py', 'r') as f:
+                  content = f.read()
+              
+              # Replace ElastiCache condition to force RQ_QUEUES setup
+              content = re.sub(
+                  r'if not TASKS_REDIS_HOST\.endswith\(\'\.cache\.amazonaws\.com\'\):',
+                  'if True:  # Patched: Force RQ queues setup for ElastiCache',
+                  content
+              )
+              
+              # Remove the else block that disables RQ_QUEUES
+              content = re.sub(
+                  r'else:\s*\n\s*# For ElastiCache.*?print\("Warning: Skipping RQ queue setup.*?\n',
+                  '',
+                  content,
+                  flags=re.DOTALL
+              )
+
+              # Ensure STATIC_URL is pulled from configuration (CloudFront) with fallback to BASE_PATH
+              content = re.sub(
+                  r'^\s*STATIC_URL\s*=.*$',
+                  "STATIC_URL = getattr(configuration, 'STATIC_URL', f'/{BASE_PATH}static/')",
+                  content,
+                  flags=re.MULTILINE
+              )
+              
+              # Write the patched file to shared volume
+              with open('/shared/settings.py', 'w') as f:
+                  f.write(content)
+              
+              print("ElastiCache RQ_QUEUES patch applied successfully!")
+          volumeMounts:
+          - name: shared-settings
+            mountPath: /shared
+        - name: wait-for-postgres
+          image: busybox:1.28  
+          command: ['sh', '-c', 'until nc -z -v -w30 benami-postgres.cx248m4we6k7.us-east-1.rds.amazonaws.com 5432; do echo "Waiting for PostgreSQL..."; sleep 5; done; echo "PostgreSQL is up!"']
       containers:
-      - name: web
-        image: 992382545251.dkr.ecr.us-east-1.amazonaws.com/status-page:v13
-        imagePullPolicy: IfNotPresent
-        command: ["/bin/bash", "-c"]
-        args:
-          - |
-            echo "Setting up Status Page application..."
-            # Copy our custom configuration
-            cp /config/configuration.py /app/statuspage/statuspage/configuration.py
-            # Update password in configuration
-            sed -i "s/'PASSWORD': '',/'PASSWORD': '${POSTGRES_PASSWORD}',/" /app/statuspage/statuspage/configuration.py
-
-            # Create a custom gunicorn config
-            cat > /app/statuspage/gunicorn.py << 'EOF'
-bind = '0.0.0.0:8001'
-workers = 5
-threads = 3
-timeout = 120
-max_requests = 5000
-max_requests_jitter = 500
-EOF
-
-            # Wait for PostgreSQL
-            echo "Waiting for PostgreSQL..."
-            until pg_isready -h $DB_HOST -p 5432; do
-              echo "PostgreSQL not ready, waiting..."
-              sleep 2
-            done
-            echo "PostgreSQL is ready!"
-
-            # Test Redis connection without auth
-            echo "Testing Redis connection..."
-            redis-cli -h $REDIS_HOST -p 6379 ping
-            echo "Redis connection test completed"
-
-            # Go to app directory
-            cd /app/statuspage
-
-            # Run Django setup
-            echo "Running Django migrations..."
-            python manage.py migrate --run-syncdb
-            echo "Collecting static files..."
-            python manage.py collectstatic --noinput
-
-            # Start Gunicorn
-            echo "Starting Gunicorn..."
-            exec gunicorn -c gunicorn.py statuspage.wsgi:application
-        ports:
-        - containerPort: 8001
-        env:
-        - name: POSTGRES_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: status-page-secrets
-              key: POSTGRES_PASSWORD
-        - name: PGPASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: status-page-secrets
-              key: POSTGRES_PASSWORD
-        - name: SERVICE_NAME
-          value: "web"
-        - name: DB_HOST
-          value: "benami-postgres.cx248m4we6k7.us-east-1.rds.amazonaws.com"
-        - name: REDIS_HOST
-          value: "benami-redis.7fftml.ng.0001.use1.cache.amazonaws.com"
-        - name: DJANGO_RQ_REDIS_URL
-          value: "redis://benami-redis.7fftml.ng.0001.use1.cache.amazonaws.com:6379/0"
-        - name: RQ_REDIS_URL
-          value: "redis://benami-redis.7fftml.ng.0001.use1.cache.amazonaws.com:6379/0"
-        resources:
-          limits:
-            cpu: 500m
-            memory: 1Gi
-          requests:
-            cpu: 100m
-            memory: 256Mi
-        volumeMounts:
-        - name: config
-          mountPath: /config
+        - name: web
+          image: 992382545251.dkr.ecr.us-east-1.amazonaws.com/benami:status-page
+          command: ["/bin/sh", "-c"]
+          args: 
+            - |
+              # Copy patched settings.py if it exists
+              if [ -f /shared/settings.py ]; then
+                cp /shared/settings.py /app/statuspage/statuspage/settings.py
+                echo "Using patched settings.py for ElastiCache compatibility"
+              fi
+              # Start the application normally
+              exec /entrypoint.sh
+          volumeMounts:
+            - name: status-page-config
+              mountPath: /app/statuspage/statuspage/configuration.py
+              subPath: configuration.py
+            - name: shared-settings
+              mountPath: /shared
+          ports:
+          - containerPort: 8001
+          env:
+            - name: STATUS_PAGE_CONFIGURATION
+              value: "statuspage.configuration"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: status-page-secrets
+                  key: POSTGRES_PASSWORD
+            - name: SERVICE_NAME
+              value: "web"
       volumes:
-      - name: config
-        configMap:
-          name: status-page-config
+        - name: status-page-config
+          configMap:
+            name: status-page-config
+        - name: shared-settings
+          emptyDir: {}

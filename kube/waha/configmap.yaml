@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: waha-config
+  namespace: default
+data:
+  WAHA_BASE_URL: "https://waha.statuspage-benami.com"
+  WHATSAPP_DEFAULT_ENGINE: "WEBJS"
+  WAHA_LOG_FORMAT: "JSON"
+  WAHA_LOG_LEVEL: "info"
+  WAHA_PRINT_QR: "False"
+  WAHA_MEDIA_STORAGE: "LOCAL"
+  WHATSAPP_FILES_LIFETIME: "0"
+  WHATSAPP_FILES_FOLDER: "/app/.media"
+  WHATSAPP_SWAGGER_ENABLED: "True"
+

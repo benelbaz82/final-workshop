@@ -86,16 +86,19 @@ fi
 case "$SERVICE_NAME" in
   "web")
     echo "Starting web service with Gunicorn..."
+    export PYTHONPATH="/app/statuspage:$PYTHONPATH"
     exec gunicorn --config gunicorn.py --pythonpath /app/statuspage statuspage.wsgi
     ;;
   "scheduler")
     echo "Starting scheduler service..."
     cd statuspage
+    export PYTHONPATH="/app/statuspage:$PYTHONPATH"
     exec python3 manage.py rqscheduler
     ;;
   "worker")
     echo "Starting worker service..."
     cd statuspage
+    export PYTHONPATH="/app/statuspage:$PYTHONPATH"
     exec python3 manage.py rqworker high default low
     ;;
   *)
