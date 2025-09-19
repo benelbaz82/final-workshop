@@ -12,26 +12,47 @@ class QueuingConfig(AppConfig):
     name = 'queuing'
 
     def ready(self):
-        scheduler = django_rq.get_scheduler('default')
-        if sys.argv[1:2] == ["collectstatic"]:
-            return None
-        jobs = list(map(lambda j: j.func_name, scheduler.get_jobs()))
+        # Skip all Redis operations if RQ_QUEUES is empty (e.g., ElastiCache without authentication)
+        from django.conf import settings
+        if not hasattr(settings, 'RQ_QUEUES') or not settings.RQ_QUEUES:
+            print("Warning: Skipping Redis scheduler setup (no RQ queues configured)")
+            return
 
-        tasks = [
-            (maintenance_automation, '* * * * *'),
-            (subscriber_automation, '* * * * *'),
-            (metric_automation, '0 0 * * *'),
-            (housekeeping, '0 4 * * *'),
-        ]
+        # Skip all Redis operations if we're using ElastiCache
+        try:
+            import os
+            redis_host = os.environ.get('REDIS_HOST', '')
+            if redis_host.endswith('.cache.amazonaws.com'):
+                print("Warning: Skipping Redis scheduler setup for ElastiCache")
+                return
+        except:
+            pass
 
-        for task, cron_string in tasks:
-            func_name = get_func_name(task)
-            if func_name not in jobs:
-                scheduler.cron(
-                    cron_string=cron_string,
-                    func=task,
-                    queue_name='default',
-                )
+        try:
+            scheduler = django_rq.get_scheduler('default')
+            if sys.argv[1:2] == ["collectstatic"]:
+                return None
+            jobs = list(map(lambda j: j.func_name, scheduler.get_jobs()))
+
+            tasks = [
+                (maintenance_automation, '* * * * *'),
+                (subscriber_automation, '* * * * *'),
+                (metric_automation, '0 0 * * *'),
+                (housekeeping, '0 4 * * *'),
+            ]
+
+            for task, cron_string in tasks:
+                func_name = get_func_name(task)
+                if func_name not in jobs:
+                    scheduler.cron(
+                        cron_string=cron_string,
+                        func=task,
+                        queue_name='default',
+                    )
+        except Exception as e:
+            # Skip scheduler setup if Redis connection fails (e.g., ElastiCache without auth)
+            print(f"Warning: Failed to set up Redis scheduler: {e}")
+            print("Scheduler tasks will not be available.")
 
 
 def get_func_name(func):

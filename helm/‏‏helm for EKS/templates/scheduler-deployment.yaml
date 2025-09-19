@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scheduler
+  labels:
+    app: scheduler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scheduler
+  template:
+    metadata:
+      labels:
+        app: scheduler
+    spec:
+      containers:
+      - name: scheduler
+        image: 992382545251.dkr.ecr.us-east-1.amazonaws.com/benami:status-page-whitenoise
+        env:
+        - name: POSTGRES_PASSWORD
+          value: "password123"
+        - name: SERVICE_NAME
+          value: "scheduler"
+        - name: STATUS_PAGE_CONFIGURATION
+          value: "statuspage.configuration"
+        volumeMounts:
+        - name: config
+          mountPath: /app/statuspage/configuration.py
+          subPath: configuration.py
+      volumes:
+      - name: config
+        configMap:
+          name: status-page-config

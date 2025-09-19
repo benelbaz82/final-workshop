@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      initContainers:
+      - name: copy-static-files
+        image: busybox
+        command: ['sh', '-c', 'mkdir -p /app/static && wget -O /app/static/statuspage.css http://web/static/statuspage.css && wget -O /app/static/statuspage.js http://web/static/statuspage.js && wget -O /app/static/statuspage-tailwind.css http://web/static/statuspage-tailwind.css || echo "Failed to copy static files"']
+        volumeMounts:
+        - name: static-files
+          mountPath: /app
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: static-files
+          mountPath: /app
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-config
+      - name: static-files
+        emptyDir: {}

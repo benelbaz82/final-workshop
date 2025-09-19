@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scheduler
+  labels:
+    app: scheduler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scheduler
+  template:
+    metadata:
+      labels:
+        app: scheduler
+    spec:
+      serviceAccountName: status-page-sa
+      initContainers:
+        - name: fix-elasticache-rq
+          image: 992382545251.dkr.ecr.us-east-1.amazonaws.com/benami:status-page
+          command: ['python3', '-c']
+          args:
+            - |
+              import re
+              print("Fixing ElastiCache RQ_QUEUES issue for scheduler...")
+              
+              # Read settings.py
+              with open('/app/statuspage/statuspage/settings.py', 'r') as f:
+                  content = f.read()
+              
+              # Replace ElastiCache condition to force RQ_QUEUES setup
+              content = re.sub(
+                  r'if not TASKS_REDIS_HOST\.endswith\(\'\.\.cache\.amazonaws\.com\'\):',
+                  'if True:  # Patched: Force RQ queues setup for ElastiCache',
+                  content
+              )
+              
+              # Remove the else block that disables RQ_QUEUES
+              content = re.sub(
+                  r'else:\s*\n\s*# For ElastiCache.*?print\("Warning: Skipping RQ queue setup.*?\n',
+                  '',
+                  content,
+                  flags=re.DOTALL
+              )
+              
+              # Write the patched file to shared volume
+              with open('/shared/settings.py', 'w') as f:
+                  f.write(content)
+              
+              print("Scheduler ElastiCache RQ_QUEUES patch applied successfully!")
+          volumeMounts:
+          - name: shared-settings
+            mountPath: /shared
+      containers:
+      - name: scheduler
+        image: "992382545251.dkr.ecr.us-east-1.amazonaws.com/benami:status-page"
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            # Copy patched settings.py if it exists
+            if [ -f /shared/settings.py ]; then
+              cp /shared/settings.py /app/statuspage/statuspage/settings.py
+              echo "Scheduler: Using patched settings.py for ElastiCache compatibility"
+            fi
+            # Start the scheduler normally
+            exec /entrypoint.sh
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: status-page-secrets
+              key: POSTGRES_PASSWORD
+        - name: SERVICE_NAME
+          value: "scheduler"
+        - name: STATUS_PAGE_CONFIGURATION
+          value: "statuspage.configuration"
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        volumeMounts:
+        - name: config
+          mountPath: /app/statuspage/statuspage/configuration.py
+          subPath: configuration.py
+        - name: shared-settings
+          mountPath: /shared
+      volumes:
+      - name: config
+        configMap:
+          name: status-page-config
+      - name: shared-settings
+        emptyDir: {}

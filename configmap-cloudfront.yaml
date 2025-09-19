@@ -1,0 +1,50 @@
+﻿apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: status-page-config
+data:
+  configuration.py: |
+    ALLOWED_HOSTS = ['*', 'statuspage-benami.com']
+    DATABASE = {
+        'NAME': 'statuspage',
+        'USER': 'statuspage_user',
+        'PASSWORD': '',  # Will be set via environment variable from Secrets Manager
+        'HOST': 'benami-postgres.cx248m4we6k7.us-east-1.rds.amazonaws.com',
+        'PORT': '5432',
+        'CONN_MAX_AGE': 300,
+    }
+    REDIS = {
+        'tasks': {
+            'HOST': 'benami-redis.7fftml.ng.0001.use1.cache.amazonaws.com',
+            'PORT': 6379,
+            'DATABASE': 0,
+            'SSL': False,
+        },
+        'caching': {
+            'HOST': 'benami-redis.7fftml.ng.0001.use1.cache.amazonaws.com',
+            'PORT': 6379,
+            'DATABASE': 1,
+            'SSL': False,
+        }
+    }
+    # Override RQ Redis configuration to avoid authentication issues with ElastiCache
+    RQ_REDIS_URL = 'redis://benami-redis.7fftml.ng.0001.use1.cache.amazonaws.com:6379/0'
+    SECRET_KEY = 'PB7EvHFvCqvmUKUKr0DRj43b3a5UpDHfaoVh1SrTySUGlcPAPCq52aA3VcLcTBZKZzw'
+    SITE_URL = 'https://statuspage-benami.com'
+    DEBUG = False
+    USE_TZ = True
+    CSRF_COOKIE_SECURE = True
+    CSRF_COOKIE_HTTPONLY = False
+    CSRF_TRUSTED_ORIGINS = ['https://statuspage-benami.com']
+    CSRF_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    # Static files served from CloudFront
+    STATIC_URL = 'https://d29s2jhu9ktsm3.cloudfront.net/static/'
+    STATIC_ROOT = '/app/static'
+
+    USE_I18N = True
+    USE_L10N = True
+    LANGUAGE_CODE = 'en-us'
+    TIME_ZONE = 'UTC'

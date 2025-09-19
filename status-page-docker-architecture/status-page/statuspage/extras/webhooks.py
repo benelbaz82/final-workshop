@@ -81,6 +81,12 @@ def flush_webhooks(queue):
     """
     Flush a list of object representation to RQ for webhook processing.
     """
+    from django.conf import settings
+    
+    # Skip webhook processing if no RQ queues are configured (e.g., for ElastiCache)
+    if not settings.RQ_QUEUES:
+        return
+        
     rq_queue_name = get_config().QUEUE_MAPPINGS.get('webhook', RQ_QUEUE_DEFAULT)
     rq_queue = get_queue(rq_queue_name)
     webhooks_cache = {

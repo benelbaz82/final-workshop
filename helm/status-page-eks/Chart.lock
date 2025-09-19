@@ -1,0 +1,9 @@
+dependencies:
+- name: cert-manager
+  repository: https://charts.jetstack.io
+  version: v1.15.3
+- name: aws-load-balancer-controller
+  repository: https://aws.github.io/eks-charts
+  version: 1.8.4
+digest: sha256:1d80ed9357e108f4214a6191ba5394ac11edc73d4c0abd04415766043c62690a
+generated: "2025-09-17T22:09:53.0403775+03:00"

@@ -88,10 +88,10 @@ for param in PARAMS:
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
+        'ENGINE': DATABASE.get('ENGINE', 'django.db.backends.postgresql'),
         'NAME': DATABASE.get('NAME'),
         'USER': DATABASE.get('USER'),
-        'PASSWORD': DATABASE.get('PASSWORD'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', DATABASE.get('PASSWORD')),
         'HOST': DATABASE.get('HOST'),
         'PORT': DATABASE.get('PORT'),
         'CONN_MAX_AGE': DATABASE.get('CONN_MAX_AGE'),
@@ -200,11 +200,11 @@ INSTALLED_APPS = [
     'subscribers',
     'django_rq',
     'drf_yasg',
-    'queuing',
     'django_otp',
     'django_otp.plugins.otp_static',
     'django_otp.plugins.otp_totp',
     'otp_yubikey',
+    # 'queuing',  # Disabled for ElastiCache compatibility
 ]
 
 MIDDLEWARE = [
@@ -401,14 +401,18 @@ else:
 RQ_PARAMS.update({
     'DB': TASKS_REDIS_DATABASE,
     'USERNAME': TASKS_REDIS_USERNAME,
-    'PASSWORD': TASKS_REDIS_PASSWORD,
     'DEFAULT_TIMEOUT': RQ_DEFAULT_TIMEOUT,
 })
+
+# Only add password if we're not using ElastiCache (which doesn't support authentication)
+if not TASKS_REDIS_HOST.endswith('.cache.amazonaws.com'):
+    RQ_PARAMS['PASSWORD'] = TASKS_REDIS_PASSWORD
 
 if TASKS_REDIS_CA_CERT_PATH:
     RQ_PARAMS.setdefault('REDIS_CLIENT_KWARGS', {})
     RQ_PARAMS['REDIS_CLIENT_KWARGS']['ssl_ca_certs'] = TASKS_REDIS_CA_CERT_PATH
 
+# Force RQ setup for ElastiCache compatibility
 RQ_QUEUES = {
     RQ_QUEUE_HIGH: RQ_PARAMS,
     RQ_QUEUE_DEFAULT: RQ_PARAMS,
@@ -420,9 +424,7 @@ RQ_QUEUES.update({
     queue: RQ_PARAMS for queue in set(QUEUE_MAPPINGS.values()) if queue not in RQ_QUEUES
 })
 
-
 for plugin_name in PLUGINS:
-
     # Import plugin module
     try:
         plugin = importlib.import_module(plugin_name)

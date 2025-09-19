@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+      - name: web
+        image: 992382545251.dkr.ecr.us-east-1.amazonaws.com/status-page:v17
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            # Create gunicorn.py file in the statuspage directory
+            cat > /app/statuspage/gunicorn.py << 'EOF'
+            bind = '0.0.0.0:8001'
+            workers = 5
+            threads = 3
+            timeout = 120
+            max_requests = 5000
+            max_requests_jitter = 500
+            EOF
+            # Run the entrypoint
+            /entrypoint.sh
+        ports:
+        - containerPort: 8001
+        env:
+        - name: POSTGRES_PASSWORD
+          value: "your_secure_password_here"
+        - name: SERVICE_NAME
+          value: "web"
+        - name: DJANGO_RQ_REDIS_URL
+          value: "redis://benami-redis.7fftml.ng.0001.use1.cache.amazonaws.com:6379"
+        - name: RQ_REDIS_URL
+          value: "redis://benami-redis.7fftml.ng.0001.use1.cache.amazonaws.com:6379"
+        volumeMounts:
+        - name: config
+          mountPath: /app/statuspage/statuspage/configuration.py
+          subPath: configuration.py
+      volumes:
+      - name: config
+        configMap:
+          name: status-page-config

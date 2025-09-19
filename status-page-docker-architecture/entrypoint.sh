@@ -3,13 +3,13 @@
 export PGPASSWORD=$PGPASSWORD
 
 # Wait for postgres to be ready
-until pg_isready -h postgres -p 5432 -U statuspage; do
+until pg_isready -h benami-postgres.cx248m4we6k7.us-east-1.rds.amazonaws.com -p 5432 -U statuspage_user; do
   echo "Waiting for postgres..."
   sleep 2
 done
 
 # Wait for redis to be ready
-until redis-cli -h redis ping | grep -q PONG; do
+until redis-cli -h benami-redis.7fftml.ng.0001.use1.cache.amazonaws.com ping | grep -q PONG; do
   echo "Waiting for redis..."
   sleep 2
 done
@@ -86,16 +86,19 @@ fi
 case "$SERVICE_NAME" in
   "web")
     echo "Starting web service with Gunicorn..."
+    export PYTHONPATH="/app/statuspage:$PYTHONPATH"
     exec gunicorn --config gunicorn.py --pythonpath /app/statuspage statuspage.wsgi
     ;;
   "scheduler")
     echo "Starting scheduler service..."
     cd statuspage
+    export PYTHONPATH="/app/statuspage:$PYTHONPATH"
     exec python3 manage.py rqscheduler
     ;;
   "worker")
     echo "Starting worker service..."
     cd statuspage
+    export PYTHONPATH="/app/statuspage:$PYTHONPATH"
     exec python3 manage.py rqworker high default low
     ;;
   *)
